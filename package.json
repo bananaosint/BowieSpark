@@ -20,7 +20,8 @@
     "db:migrate": "npm run db:migrate --workspace server",
     "db:seed": "npm run db:seed --workspace server",
     "db:reset": "npm run db:reset --workspace server",
-    "setup": "npm install && npm run db:migrate && npm run db:seed"
+    "setup": "npm install && npm run db:migrate && npm run db:seed",
+    "test": "node test/api.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

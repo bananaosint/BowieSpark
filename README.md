@@ -32,6 +32,19 @@ would abort. `server/scripts/ensure-env.js` runs automatically ahead of
 the first time. Nothing secret is committed — the example holds local defaults
 only.
 
+### Checking it still works
+
+```bash
+npm test          # with `npm run dev` running in another terminal
+```
+
+57 end-to-end checks against the real API with real logins — no mocks, because
+the things most worth protecting here are authorization boundaries and a mock
+cannot tell you those still hold. It covers the signup rush under real
+concurrency, every teacher-ownership boundary, the cutoff transitions, and the
+admin self-lockout guards. It writes to the database and cleans up after
+itself; if anything looks stuck, `npm run db:seed` and re-run.
+
 ### Signing in
 
 Every seeded account uses the password **`FitBeta2026!`**:
