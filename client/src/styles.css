@@ -516,7 +516,9 @@ code {
   box-shadow: var(--lift);
   padding: 30px 32px 34px;
 }
-.placeholder h2 { margin-top: 0; }
+/* The heading rule is a flex:1 ::after, so without this it runs the full width
+   and terminates underneath the stamp. Reserve the stamp's lane. */
+.placeholder h2 { margin-top: 0; padding-right: 140px; }
 .placeholder__stamp {
   position: absolute;
   top: 18px;
@@ -560,5 +562,7 @@ code {
   .devbar__note { margin-left: 0; flex-basis: 100%; }
   .shell h2 { font-size: 22px; }
   .placeholder { padding: 26px 20px 30px; }
+  /* Stamp drops into the flow at narrow widths, so the heading reclaims its lane. */
+  .placeholder h2 { padding-right: 0; }
   .placeholder__stamp { position: static; display: inline-block; margin-bottom: 14px; transform: none; }
 }
