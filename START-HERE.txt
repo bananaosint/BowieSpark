@@ -1,0 +1,59 @@
+FIT & CLUB SCHEDULING PLATFORM
+Getting it running on your computer
+===================================================================
+
+You need Node.js 20 or newer. That is the only thing to install --
+there is no database server to set up.
+
+  Check what you have:   node --version
+  Get it if you need it: https://nodejs.org   (choose the LTS build)
+
+Open a terminal IN THIS FOLDER, then run these four commands in order:
+
+  npm install          installs dependencies (takes a couple of minutes)
+  npm run db:migrate   creates the local database file
+  npm run db:seed      fills it with fake demo data
+  npm run dev          starts the app
+
+Then open http://localhost:5173 in your browser.
+
+Press Ctrl+C in the terminal to stop it.
+
+-------------------------------------------------------------------
+WHAT YOU SHOULD SEE
+
+A red-and-white weekly schedule view. The striped red bar across the
+top is a DEVELOPMENT user switcher -- use it to sign in as different
+people. Try:
+
+  - a student (Avery Nguyen) .... the normal week view
+  - Bo Fitzgerald ............... has a locked teacher-assigned day
+  - Ana Reyes (Admin) ........... can reach all three sections
+
+-------------------------------------------------------------------
+IMPORTANT
+
+All the data in here is INVENTED. There are no real students, and no
+real student information is stored anywhere.
+
+There is also no real login yet -- the user switcher simply trusts
+whoever you pick. That is fine for this demo, but it means this must
+NOT be put on the public internet as-is.
+
+-------------------------------------------------------------------
+TROUBLESHOOTING
+
+"npm is not recognized"
+    Node.js isn't installed, or the terminal was open before you
+    installed it. Close the terminal, open a new one, try again.
+
+"Port 4000 / 5173 already in use"
+    Something else is using those ports, or a previous run is still
+    going. Close the other terminal window and retry.
+
+Something looks broken or the data got into a weird state
+    npm run db:reset     wipes the database and reloads the fake data
+
+-------------------------------------------------------------------
+README.md has the full technical detail: what is built, what is not
+built yet, and why certain decisions were made.

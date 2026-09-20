@@ -9,6 +9,10 @@ work (signing up, overrides, attendance, analytics) is deliberately not built ye
 
 ## Quick start
 
+Needs **Node.js 20 or newer** and nothing else — no database server to install,
+no global packages. Check with `node --version`; if it's missing or older, get it
+from <https://nodejs.org> (the LTS build). npm ships with Node.
+
 ```bash
 npm install
 npm run db:migrate     # creates server/prisma/dev.db from the schema
@@ -22,8 +26,12 @@ would abort. `server/scripts/ensure-env.js` runs automatically ahead of
 the first time. Nothing secret is ever committed — the example holds local
 defaults only.
 
-Then open <http://localhost:5173>. Use the yellow dev bar at the top to switch
-between seeded students, teachers, and the admin.
+Then open <http://localhost:5173>. Use the striped red dev bar at the top to
+switch between seeded students, teachers, and the admin — start as a student to
+see the week view, and pick **Bo Fitzgerald** to see a locked teacher-override
+day.
+
+Both halves run from one terminal. `Ctrl+C` stops them together.
 
 `npm run setup` does install + migrate + seed in one go.
 
