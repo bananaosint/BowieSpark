@@ -1,0 +1,181 @@
+// FIT & Club Scheduling Platform — v1 data model (build sheet §4)
+//
+// SQLite notes (verified against Prisma 6.19.x):
+//   - Scalar lists (String[]) are NOT supported by the sqlite connector.
+//     Session.days is therefore a JSON-encoded string; see src/lib/days.js.
+//   - Enums ARE supported (emulated as TEXT + CHECK constraint).
+//   - Calendar dates are stored as "YYYY-MM-DD" strings, not DateTime.
+//     A FIT day is a local school-calendar date, not an instant; storing it
+//     as text keeps @@unique([studentId, date]) exact and timezone-proof.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  // NOTE: a relative `file:` url resolves against THIS file's directory,
+  // so dev.db lands in server/prisma/dev.db regardless of cwd.
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------- enums
+
+enum Role {
+  student
+  teacher
+  admin
+}
+
+enum RecurrenceType {
+  daily
+  specific_days
+}
+
+enum EnrollmentStatus {
+  self_selected
+  teacher_override
+}
+
+enum AttendanceStatus {
+  present
+  tardy
+  absent
+  cut
+}
+
+enum CutoffScope {
+  global
+  per_session
+}
+
+// ---------------------------------------------------------------- models
+
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  role        Role     @default(student)
+  displayName String
+  // Null until local email/password auth lands. Google OAuth users stay null.
+  passwordHash String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  sessionsTaught   Session[]      @relation("SessionTeacher")
+  enrollments      Enrollment[]   @relation("EnrollmentStudent")
+  overridesIssued  Enrollment[]   @relation("EnrollmentOverrideBy")
+  attendanceTaken  Attendance[]   @relation("AttendanceRecordedBy")
+  cutoffsSet       CutoffConfig[] @relation("CutoffSetBy")
+  policyTextEdits  PolicyText[]   @relation("PolicyUpdatedBy")
+
+  @@index([role])
+}
+
+model SubjectTag {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  sortOrder Int
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  sessions Session[]
+
+  @@index([sortOrder])
+}
+
+model Session {
+  id          String         @id @default(cuid())
+  title       String
+  description String         @default("") // <= 50 words, enforced in app layer
+  capacity    Int
+  recurrenceType RecurrenceType @default(daily)
+  // JSON array of day codes, e.g. ["MON","TUE"]. Empty when recurrenceType=daily.
+  days        String         @default("[]")
+  // Display-only per build sheet §3 — never enforced as a signup gate.
+  prerequisites String       @default("")
+  active      Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  teacherId    String
+  teacher      User       @relation("SessionTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+  subjectTagId String
+  subjectTag   SubjectTag @relation(fields: [subjectTagId], references: [id])
+
+  enrollments  Enrollment[]
+  cutoffConfig CutoffConfig?
+
+  @@index([teacherId])
+  @@index([subjectTagId])
+  @@index([active])
+}
+
+model Enrollment {
+  id        String           @id @default(cuid())
+  date      String // "YYYY-MM-DD"
+  status    EnrollmentStatus @default(self_selected)
+  // True when the student may no longer change this pick: either a teacher
+  // override, or the cutoff for `date` has passed.
+  locked    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  sessionId String
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  studentId String
+  student   User    @relation("EnrollmentStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  // Set only when status = teacher_override.
+  overrideById String?
+  overrideBy   User?  @relation("EnrollmentOverrideBy", fields: [overrideById], references: [id], onDelete: SetNull)
+
+  attendance Attendance?
+
+  // One pick per student per day. A teacher override REPLACES the student's
+  // self_selected row for that date (upsert), it does not coexist with it.
+  @@unique([studentId, date])
+  @@index([sessionId, date])
+  @@index([date])
+}
+
+model Attendance {
+  id        String           @id @default(cuid())
+  date      String // denormalized from Enrollment.date for direct date queries
+  status    AttendanceStatus
+  note      String?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  // One attendance record per enrollment — Enrollment is already per-date.
+  enrollmentId String     @unique
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  recordedById String?
+  recordedBy   User?      @relation("AttendanceRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull)
+
+  @@index([date])
+  @@index([status])
+}
+
+model CutoffConfig {
+  id     String      @id @default(cuid())
+  scope  CutoffScope @default(global)
+  // Rule grammar: "T-0" = open until the FIT bell; "T-1@21:00" = lock at
+  // 9pm the night before. Parsed in src/lib/cutoff.js.
+  cutoffRule String   @default("T-0")
+  updatedAt  DateTime @updatedAt
+
+  // Null for the single global config; set for a per-session override.
+  sessionId String?  @unique
+  session   Session? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  setByAdminId String?
+  setByAdmin   User?   @relation("CutoffSetBy", fields: [setByAdminId], references: [id], onDelete: SetNull)
+}
+
+model PolicyText {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  updatedById String?
+  updatedBy   User?   @relation("PolicyUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+}
