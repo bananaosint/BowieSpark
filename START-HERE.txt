@@ -20,24 +20,35 @@ Then open http://localhost:5173 in your browser.
 Press Ctrl+C in the terminal to stop it.
 
 -------------------------------------------------------------------
-WHAT YOU SHOULD SEE
+SIGNING IN
 
-A red-and-white weekly schedule view. The striped red bar across the
-top is a DEVELOPMENT user switcher -- use it to sign in as different
-people. Try:
+Every demo account uses the password:   FitBeta2026!
 
-  - a student (Avery Nguyen) .... the normal week view
-  - Bo Fitzgerald ............... has a locked teacher-assigned day
-  - Ana Reyes (Admin) ........... can reach all three sections
+  anguyen@stu.austinisd.org ...... a student: browse and sign up
+  bfitzgerald@stu.austinisd.org .. a student with a locked,
+                                   teacher-assigned day
+  cowlin@austinisd.org ........... a teacher: sessions, roster,
+                                   attendance, assigning students
+  fit.admin@austinisd.org ........ an admin: settings and analytics
+
+-------------------------------------------------------------------
+DEV VIEW
+
+The striped red bar at the top switches between "user view" (real
+sign-in, the way students will actually use it) and "dev view",
+which lets you hop between the demo accounts without a password.
+
+Dev view is handy for checking how each role sees things. It only
+works because this copy is running in development mode, and it
+disappears completely when the app is deployed for real.
 
 -------------------------------------------------------------------
 IMPORTANT
 
-All the data in here is INVENTED. There are no real students, and no
-real student information is stored anywhere.
+All the data in here is INVENTED. There are no real students, and
+no real student information is stored anywhere.
 
-There is also no real login yet -- the user switcher simply trusts
-whoever you pick. That is fine for this demo, but it means this must
+The accounts above all share one published password, so this must
 NOT be put on the public internet as-is.
 
 -------------------------------------------------------------------
@@ -51,9 +62,14 @@ TROUBLESHOOTING
     Something else is using those ports, or a previous run is still
     going. Close the other terminal window and retry.
 
+Sign-in says the account is not active
+    That is correct for staff accounts you create yourself -- an
+    admin has to approve them first. Sign in as the admin above,
+    go to Admin > Accounts, and activate it.
+
 Something looks broken or the data got into a weird state
     npm run db:reset     wipes the database and reloads the fake data
 
 -------------------------------------------------------------------
-README.md has the full technical detail: what is built, what is not
-built yet, and why certain decisions were made.
+README.md has the full technical detail: what is built, what is
+not, and why certain decisions were made.

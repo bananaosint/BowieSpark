@@ -1,9 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api, apiPost } from '../lib/api.js';
+import { api, apiPost, apiDelete } from '../lib/api.js';
+import { useAuth } from '../lib/auth.jsx';
 
 const ATTENDANCE = ['present', 'tardy', 'absent', 'cut'];
 
 export default function RosterPanel({ session, date, onEdit, onDelete, onChanged }) {
+  const { user } = useAuth();
+  // Teachers assign but cannot un-assign (the v1 scope choice). Admins act
+  // org-wide, so the escape hatch for a mis-assignment lives with them.
+  const canClear = user?.role === 'admin';
   const [roster, setRoster] = useState(null);
   const [error, setError] = useState(null);
   const [flash, setFlash] = useState(null);
@@ -53,6 +58,23 @@ export default function RosterPanel({ session, date, onEdit, onDelete, onChanged
       clearTimeout(t);
     };
   }, [query, showAssign]);
+
+  async function clearRow(row) {
+    const who = row.student?.displayName ?? 'this student';
+    if (!window.confirm(`Clear ${who}'s place on ${date}? They will be free to choose again.`)) return;
+    setBusyId(row.enrollmentId);
+    setError(null);
+    try {
+      const res = await apiDelete(`/admin/enrollments/${row.enrollmentId}`);
+      setFlash(res.message);
+      await load();
+      await onChanged?.();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   async function mark(row, status) {
     setBusyId(row.enrollmentId);
@@ -223,6 +245,7 @@ export default function RosterPanel({ session, date, onEdit, onDelete, onChanged
               <th>Student</th>
               <th>How</th>
               <th>Attendance</th>
+              {canClear ? <th>Admin</th> : null}
             </tr>
           </thead>
           <tbody>
@@ -255,6 +278,19 @@ export default function RosterPanel({ session, date, onEdit, onDelete, onChanged
                     ))}
                   </div>
                 </td>
+                {canClear ? (
+                  <td className="nowrap">
+                    <button
+                      type="button"
+                      className="btn btn--sm"
+                      disabled={busyId === row.enrollmentId}
+                      onClick={() => clearRow(row)}
+                      title="Free this student to choose again for this day"
+                    >
+                      Clear
+                    </button>
+                  </td>
+                ) : null}
               </tr>
             ))}
           </tbody>

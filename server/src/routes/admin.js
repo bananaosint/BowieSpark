@@ -591,6 +591,52 @@ adminRouter.patch('/users/:id', async (req, res, next) => {
 
 // ---------------------------------------------------------------- analytics
 
+// ------------------------------------------------------- enrollment repair
+//
+// A teacher override cannot be undone by the teacher who made it (the scope
+// chosen for v1 is assign-only) and must not be undoable by the student. That
+// left a mis-assignment permanent: the student locked into the wrong session
+// with nobody able to fix it. Admins act org-wide per build sheet §2, so the
+// escape hatch lives here.
+//
+// DELETE /api/admin/enrollments/:id — clear one enrollment, freeing that
+// student to choose again for that day.
+adminRouter.delete('/enrollments/:id', async (req, res, next) => {
+  try {
+    const enrollment = await prisma.enrollment.findUnique({
+      where: { id: String(req.params.id ?? '') },
+      include: { student: true, session: true },
+    });
+    if (!enrollment) {
+      return res.status(404).json({ error: 'not_found', message: 'No such enrollment.' });
+    }
+
+    // Attendance hangs off the enrollment and describes a period that is being
+    // erased, so it goes with it rather than being left dangling.
+    await prisma.$transaction([
+      prisma.attendance.deleteMany({ where: { enrollmentId: enrollment.id } }),
+      prisma.enrollment.delete({ where: { id: enrollment.id } }),
+    ]);
+
+    res.json({
+      ok: true,
+      cleared: {
+        id: enrollment.id,
+        date: enrollment.date,
+        status: enrollment.status,
+        student: publicUser(enrollment.student),
+        sessionTitle: enrollment.session?.title ?? null,
+      },
+      message:
+        enrollment.status === 'teacher_override'
+          ? `${enrollment.student.displayName} is no longer assigned on ${enrollment.date} and can choose again.`
+          : `${enrollment.student.displayName}'s pick for ${enrollment.date} was cleared.`,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 function shiftDays(dateKey, delta) {
   const date = fromDateKey(dateKey);
   date.setDate(date.getDate() + delta);
