@@ -692,3 +692,164 @@ code {
   .placeholder h2 { padding-right: 0; }
   .placeholder__stamp { position: static; display: inline-block; margin-bottom: 14px; transform: none; }
 }
+
+/* ============================================================ dev bar modes */
+/* Idle: dev mode is available but you are signed in for real. Deliberately
+   quieter than dev view, so the loud striped bar always means "no real auth". */
+.devbar--idle {
+  background-color: var(--paper-band);
+  background-image: none;
+  border-bottom: 2px solid var(--silver);
+  color: var(--ink-soft);
+}
+.devbar--idle .devbar__tag {
+  background: var(--paper);
+  color: var(--ink-soft);
+  border-color: var(--silver);
+  box-shadow: 2px 2px 0 var(--silver);
+}
+.devbar--idle .devbar__note { margin-left: 0; }
+
+.devbar__switch {
+  margin-left: auto;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+  background: var(--paper);
+  color: var(--crimson);
+  border: 2px solid var(--paper);
+  box-shadow: 2px 2px 0 var(--crimson-deep);
+  padding: 5px 12px;
+  cursor: pointer;
+}
+.devbar--idle .devbar__switch {
+  border-color: var(--silver);
+  box-shadow: 2px 2px 0 var(--silver);
+}
+.devbar__switch:hover { background: var(--crimson-wash); }
+.devbar__switch:focus-visible { outline: 3px solid var(--crimson); outline-offset: 2px; }
+.devbar .devbar__note + .devbar__switch { margin-left: 14px; }
+
+/* ================================================================= topbar+ */
+.topbar--bare { justify-content: center; }
+.topbar__signout {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+  background: var(--paper);
+  color: var(--ink);
+  border: 2px solid var(--silver);
+  box-shadow: var(--lift-sm);
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.topbar__signout:hover { border-color: var(--crimson); color: var(--crimson); }
+.topbar__signout:focus-visible { outline: 3px solid var(--crimson); outline-offset: 2px; }
+
+/* ================================================================== forms */
+.shell--narrow { max-width: 520px; }
+
+.authcard {
+  background: var(--paper);
+  border: 3px double var(--silver);
+  box-shadow: var(--lift);
+  padding: 28px 30px 30px;
+}
+.authcard h2 { margin-top: 0; }
+
+.authtabs { display: flex; margin: 0 0 22px; border-bottom: 4px solid var(--crimson); }
+.authtabs button {
+  flex: 1;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+  background: var(--paper);
+  color: var(--ink-soft);
+  border: 2px solid var(--silver);
+  border-bottom: none;
+  margin-right: 5px;
+  padding: 10px 14px;
+  cursor: pointer;
+  position: relative;
+  top: 2px;
+}
+.authtabs button:last-child { margin-right: 0; }
+.authtabs button:hover { color: var(--crimson); border-color: var(--crimson); }
+.authtabs button:focus-visible { outline: 3px solid var(--crimson); outline-offset: -3px; }
+.authtabs button.is-active {
+  background: var(--crimson);
+  border-color: var(--crimson);
+  color: #fff;
+  top: 0;
+  padding-bottom: 12px;
+}
+
+.authform { display: flex; flex-direction: column; gap: 16px; }
+
+.field { display: flex; flex-direction: column; gap: 5px; }
+.field__label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+  color: var(--crimson);
+}
+.field input,
+.field select,
+.field textarea {
+  padding: 9px 12px;
+  background: var(--paper);
+  border: 2px solid var(--silver);
+  font: inherit;
+  color: var(--ink);
+}
+.field input:focus-visible,
+.field select:focus-visible,
+.field textarea:focus-visible {
+  outline: none;
+  border-color: var(--crimson);
+  box-shadow: 2px 2px 0 var(--crimson);
+}
+.field__hint { font-size: 11.5px; color: var(--ink-soft); }
+
+.btn {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+  padding: 11px 20px;
+  border: 2px solid var(--silver);
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: var(--lift-sm);
+  cursor: pointer;
+}
+.btn:hover:not(:disabled) { border-color: var(--crimson); color: var(--crimson); }
+.btn:active:not(:disabled) { transform: translate(3px, 3px); box-shadow: none; }
+.btn:focus-visible { outline: 3px solid var(--crimson); outline-offset: 2px; }
+.btn:disabled { color: var(--ink-soft); cursor: not-allowed; box-shadow: none; }
+
+.btn--primary {
+  background: var(--crimson);
+  color: #fff;
+  border-color: var(--crimson-deep);
+  box-shadow: 3px 3px 0 var(--crimson-deep);
+}
+.btn--primary:hover:not(:disabled) { background: var(--crimson-deep); color: #fff; }
+.btn--primary:disabled { background: var(--silver); border-color: var(--silver); color: var(--paper); }
+
+.authnote {
+  margin: 22px 0 0;
+  padding-top: 16px;
+  border-top: 2px solid var(--silver);
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+.authnote--dev { border-top-style: dashed; }
+
+/* A notice with no banner header — used for inline status messages. */
+.notice--plain { padding: 13px 16px; }
+.notice--plain .notice__head { display: none; }

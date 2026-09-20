@@ -69,6 +69,7 @@ model User {
   attendanceTaken  Attendance[]   @relation("AttendanceRecordedBy")
   cutoffsSet       CutoffConfig[] @relation("CutoffSetBy")
   policyTextEdits  PolicyText[]   @relation("PolicyUpdatedBy")
+  authSessions     AuthSession[]
 
   @@index([role])
 }
@@ -163,6 +164,8 @@ model CutoffConfig {
   // Rule grammar: "T-0" = open until the FIT bell; "T-1@21:00" = lock at
   // 9pm the night before. Parsed in src/lib/cutoff.js.
   cutoffRule String   @default("T-0")
+  // When "T-0" means "until the bell", this is the bell. School-local 24h time.
+  bellTime   String   @default("09:30")
   updatedAt  DateTime @updatedAt
 
   // Null for the single global config; set for a per-session override.
@@ -171,6 +174,26 @@ model CutoffConfig {
 
   setByAdminId String?
   setByAdmin   User?   @relation("CutoffSetBy", fields: [setByAdminId], references: [id], onDelete: SetNull)
+}
+
+// Server-side login sessions. Named AuthSession because `Session` is already
+// the FIT-session model — colliding those two would be a nasty bug to read.
+//
+// The cookie carries a random token; only its SHA-256 hash is stored, so a
+// database leak does not hand over live sessions.
+model AuthSession {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+  userAgent String?
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 model PolicyText {

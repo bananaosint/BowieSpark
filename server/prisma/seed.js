@@ -3,6 +3,7 @@
 import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
 import { encodeDays } from '../src/lib/days.js';
+import { hashPassword } from '../src/auth/password.js';
 import { schoolWeekOf, todayKey } from '../src/lib/dates.js';
 import {
   POLICY_KEYS,
@@ -11,6 +12,11 @@ import {
 } from '../src/lib/constants.js';
 
 const prisma = new PrismaClient();
+
+// Every seeded account shares this password so the beta is easy to poke at.
+// Hashed once and reused: these are invented accounts, and hashing 14 times
+// would add seconds to every re-seed for no benefit.
+const DEMO_PASSWORD = 'FitBeta2026!';
 
 const SUBJECT_TAGS = [
   'Math',
@@ -59,8 +65,10 @@ const SESSIONS = [
 
 async function main() {
   console.log('Seeding fake data...');
+  const passwordHash = await hashPassword(DEMO_PASSWORD);
 
   // Wipe in FK-safe order so re-seeding is repeatable.
+  await prisma.authSession.deleteMany();
   await prisma.attendance.deleteMany();
   await prisma.enrollment.deleteMany();
   await prisma.cutoffConfig.deleteMany();
@@ -81,6 +89,7 @@ async function main() {
       email: `fit.admin@${STAFF_EMAIL_DOMAIN}`,
       role: 'admin',
       displayName: 'Ana Reyes (Admin)',
+      passwordHash,
     },
   });
 
@@ -88,7 +97,7 @@ async function main() {
   for (const [displayName, handle] of TEACHERS) {
     teachers.push(
       await prisma.user.create({
-        data: { email: `${handle}@${STAFF_EMAIL_DOMAIN}`, role: 'teacher', displayName },
+        data: { email: `${handle}@${STAFF_EMAIL_DOMAIN}`, role: 'teacher', displayName, passwordHash },
       })
     );
   }
@@ -97,7 +106,7 @@ async function main() {
   for (const [displayName, handle] of STUDENTS) {
     students.push(
       await prisma.user.create({
-        data: { email: `${handle}@${STUDENT_EMAIL_DOMAIN}`, role: 'student', displayName },
+        data: { email: `${handle}@${STUDENT_EMAIL_DOMAIN}`, role: 'student', displayName, passwordHash },
       })
     );
   }
@@ -130,7 +139,7 @@ async function main() {
   });
 
   await prisma.cutoffConfig.create({
-    data: { scope: 'global', cutoffRule: 'T-0', setByAdminId: admin.id },
+    data: { scope: 'global', cutoffRule: 'T-0', bellTime: '09:30', setByAdminId: admin.id },
   });
 
   // Enrollments across the current school week. @@unique([studentId, date])
@@ -187,6 +196,7 @@ async function main() {
       `${students.length} students, ${sessions.length} sessions, ~${created} enrollments`
   );
   console.log(`  Override demo: ${overrideStudent.displayName} on ${overrideDate}`);
+  console.log(`  Every seeded account signs in with password: ${DEMO_PASSWORD}`);
   console.log('Done.');
 }
 
