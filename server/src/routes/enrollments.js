@@ -43,9 +43,11 @@ enrollmentsRouter.post('/', requireAuth, async (req, res, next) => {
       });
     }
 
-    // Optional chaining, not destructuring: a request with no JSON body at all
-    // leaves req.body undefined, and `const { sessionId } = undefined` throws a
-    // TypeError before any validation can turn it into a 400.
+    // Read defensively rather than destructuring: express.json() leaves
+    // req.body as {} today, but nothing here should depend on a body parser
+    // having run upstream — a missing body has to become a 400 below, never a
+    // TypeError and a 500. Typed-checked too, so a number or an object lands
+    // in the same 400 instead of being coerced into a lookup key.
     const sessionId = typeof req.body?.sessionId === 'string' ? req.body.sessionId.trim() : '';
     const date = req.body?.date;
 

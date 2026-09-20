@@ -181,6 +181,48 @@ function readDateParam(value) {
   return date;
 }
 
+// --------------------------------------------------------------- students
+
+// GET /api/teacher/students?q=&limit=
+// Student lookup for the override tool — a teacher has to be able to find a
+// student by name before they can assign one. Returns only the fields the
+// picker needs; no enrollment history, no other teacher's rosters.
+//
+// Capped and search-first on purpose: at 3,000 students an unbounded list
+// would be a slow query and a needless bulk disclosure of the whole roll.
+teacherRouter.get('/students', async (req, res, next) => {
+  try {
+    const q = String(req.query.q ?? '').trim();
+    // Clamped at BOTH ends. Prisma reads a negative take as "count back from
+    // the end of the result set", so ?limit=-5 would quietly serve the last
+    // five names instead of the first five — a wrong page, not an error.
+    const limit = Math.min(Math.max(Number(req.query.limit) || 25, 1), 100);
+
+    const students = await prisma.user.findMany({
+      where: {
+        role: 'student',
+        active: true,
+        ...(q
+          ? {
+              OR: [
+                { displayName: { contains: q } },
+                { email: { contains: q } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: { displayName: 'asc' },
+      take: limit,
+      select: { id: true, displayName: true, email: true },
+    });
+
+    const total = await prisma.user.count({ where: { role: 'student', active: true } });
+    res.json({ students, total, truncated: students.length === limit, query: q });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // --------------------------------------------------------------- sessions
 
 // GET /api/teacher/sessions?date=YYYY-MM-DD

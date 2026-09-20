@@ -273,7 +273,22 @@ adminRouter.delete('/subject-tags/:id', async (req, res, next) => {
       });
     }
 
-    await prisma.subjectTag.delete({ where: { id: tag.id } });
+    try {
+      await prisma.subjectTag.delete({ where: { id: tag.id } });
+    } catch (err) {
+      // Backstop for a session created against this tag between the count
+      // above and the delete. SQLite raises the FK violation as P2003; the
+      // answer is the same 409 the pre-check gives, not a 500.
+      if (err.code === 'P2003') {
+        return res.status(409).json({
+          error: 'tag_in_use',
+          message:
+            `"${tag.name}" was just used by a new session, so it cannot be deleted. ` +
+            'Set it inactive instead.',
+        });
+      }
+      throw err;
+    }
     res.json({ ok: true, deletedId: tag.id });
   } catch (err) {
     next(err);
