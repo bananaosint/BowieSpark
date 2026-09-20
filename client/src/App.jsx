@@ -3,12 +3,14 @@ import { useAuth } from './lib/auth.jsx';
 import DevBar from './components/DevBar.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import StudentHome from './pages/StudentHome.jsx';
+import SchedulePage from './pages/SchedulePage.jsx';
 import TeacherHome from './pages/TeacherHome.jsx';
 import AdminHome from './pages/AdminHome.jsx';
 
 // Admins see everything teachers see, org-wide, per build sheet §2.
 const NAV = [
   { to: '/student', label: 'My FIT', roles: ['student', 'teacher', 'admin'] },
+  { to: '/schedule', label: 'My schedule', roles: ['student'] },
   { to: '/teacher', label: 'Teaching', roles: ['teacher', 'admin'] },
   { to: '/admin', label: 'Admin', roles: ['admin'] },
 ];
@@ -94,6 +96,14 @@ export default function App() {
           <Route path="/" element={<Navigate to="/student" replace />} />
           <Route path="/login" element={<Navigate to="/student" replace />} />
           <Route path="/student" element={<StudentHome />} />
+          <Route
+            path="/schedule"
+            element={
+              <RequireRole roles={['student']}>
+                <SchedulePage />
+              </RequireRole>
+            }
+          />
           <Route
             path="/teacher"
             element={

@@ -184,7 +184,7 @@ export default function StudentHome() {
                     <span className="muted">
                       Current pick: <strong>{activeDay.enrollment.session.title}</strong>
                     </span>
-                    {canEnroll ? (
+                    {canEnroll && !activeDay.locked ? (
                       <button
                         type="button"
                         className="btn"
@@ -201,6 +201,14 @@ export default function StudentHome() {
                   </span>
                 )}
               </div>
+
+              {activeDay.pastCutoff ? (
+                <p className="notice notice--plain">
+                  Signups for this day are closed.{' '}
+                  {activeDay.cutoff?.description ?? ''} You can still see what&rsquo;s on, but
+                  the choice is locked in now.
+                </p>
+              ) : null}
 
               <nav className="tabs">
                 <button

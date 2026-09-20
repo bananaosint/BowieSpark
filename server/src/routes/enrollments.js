@@ -179,23 +179,52 @@ enrollmentsRouter.post('/', requireAuth, async (req, res, next) => {
       },
     };
 
-    // Attendance hangs off the enrollment row, and that row is updated rather
-    // than replaced — so a mark the old teacher already recorded would follow
-    // the student into the new session and show up on its roster. It describes
-    // a period the student is no longer attending; drop it, the same way the
-    // teacher-override path does. One transaction, because a switch that lost
-    // its cleanup halfway would leave exactly that phantom mark behind.
-    const [enrollment] = isSwitch
-      ? await prisma.$transaction([
-          prisma.enrollment.upsert(upsertArgs),
-          prisma.attendance.deleteMany({ where: { enrollmentId: existing.id } }),
-        ])
-      : [await prisma.enrollment.upsert(upsertArgs)];
+    // The capacity check above is a fast path for the obvious case. It cannot
+    // be the only one: between counting and writing there is a window where two
+    // students both read "one seat left" and both take it — precisely the
+    // "everyone signs up the second the window opens" rush the build sheet
+    // calls out. So the real check happens AFTER the write, inside the
+    // transaction, where the count includes the seat just taken. SQLite
+    // serialises writers, so the loser of a race sees the winner's row and
+    // rolls its own seat back.
+    //
+    // The transaction also covers the attendance cleanup: attendance hangs off
+    // the enrollment row, and that row is updated rather than replaced, so a
+    // mark the old teacher recorded would otherwise follow the student into the
+    // new session. A switch that lost its cleanup halfway would leave exactly
+    // that phantom mark behind.
+    let enrollment;
+    let enrolledCount;
+    try {
+      ({ enrollment, enrolledCount } = await prisma.$transaction(async (tx) => {
+        const row = await tx.enrollment.upsert(upsertArgs);
 
-    // Counted after the write so the seat the student just took is included.
-    const enrolledCount = await prisma.enrollment.count({
-      where: { sessionId: session.id, date },
-    });
+        if (isSwitch) {
+          await tx.attendance.deleteMany({ where: { enrollmentId: existing.id } });
+        }
+
+        const taken = await tx.enrollment.count({
+          where: { sessionId: session.id, date },
+        });
+
+        // `alreadyHere` is excluded: re-confirming a seat the student already
+        // holds changes no count, and must not fail because the session is at
+        // capacity — they ARE one of the people filling it.
+        if (!alreadyHere && taken > session.capacity) {
+          throw Object.assign(new Error('capacity exceeded'), { fitSessionFull: true });
+        }
+
+        return { enrollment: row, enrolledCount: taken };
+      }));
+    } catch (err) {
+      if (err?.fitSessionFull) {
+        return res.status(409).json({
+          error: 'session_full',
+          message: `${session.title} filled up while you were choosing. Try another session.`,
+        });
+      }
+      throw err;
+    }
 
     // Always 200: this is one per-day slot being set, not a new item in a
     // collection, and the client reacts to the payload rather than the code.

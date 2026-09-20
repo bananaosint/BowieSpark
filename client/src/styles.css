@@ -1079,3 +1079,21 @@ code {
 .stat__value { font-family: var(--serif); font-size: 26px; line-height: 1; }
 .stat__label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; color: var(--ink-soft); }
 .toolbar__note { flex-basis: 100%; margin: 0; }
+
+/* Attendance marks in a student's own history. Each carries a word as well as
+   a colour, since colour alone conveys nothing to a screen reader. */
+.attmark {
+  display: inline-block;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+  padding: 4px 10px;
+  border: 2px solid var(--silver);
+  background: var(--paper);
+  color: var(--ink-soft);
+}
+.attmark--present { border-color: var(--silver); }
+.attmark--tardy { border-left: 5px solid var(--crimson); }
+.attmark--absent,
+.attmark--cut { background: var(--crimson); border-color: var(--crimson-deep); color: #fff; }

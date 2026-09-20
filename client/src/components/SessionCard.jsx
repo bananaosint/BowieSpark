@@ -109,16 +109,33 @@ export default function SessionCard({
             <button
               type="button"
               onClick={() => onSignUp?.(session)}
-              disabled={locked || session.isFull || busy || !onSignUp || Boolean(disabledReason)}
+              disabled={
+                locked ||
+                session.isFull ||
+                session.pastCutoff ||
+                busy ||
+                !onSignUp ||
+                Boolean(disabledReason)
+              }
               // The reason a button is dead belongs on the button, not in a
               // paragraph somewhere else on the page.
               title={
                 locked
                   ? 'Your teacher assigned this — it cannot be changed.'
-                  : disabledReason ?? (session.isFull ? 'This session is full.' : undefined)
+                  : session.pastCutoff
+                    ? `Signups for this day have closed. ${session.cutoffDescription ?? ''}`.trim()
+                    : disabledReason ?? (session.isFull ? 'This session is full.' : undefined)
               }
             >
-              {locked ? 'Locked' : busy ? 'Saving…' : session.isFull ? 'Full' : 'Sign up'}
+              {locked
+                ? 'Locked'
+                : busy
+                  ? 'Saving…'
+                  : session.pastCutoff
+                    ? 'Closed'
+                    : session.isFull
+                      ? 'Full'
+                      : 'Sign up'}
             </button>
           )}
         </footer>

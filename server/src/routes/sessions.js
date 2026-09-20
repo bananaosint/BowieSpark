@@ -4,6 +4,7 @@ import { decodeDays, sessionRunsOn } from '../lib/days.js';
 import { DAY_CODES } from '../lib/constants.js';
 import { isValidDateKey, todayKey, dayCodeFor } from '../lib/dates.js';
 import { requireAuth } from '../auth/index.js';
+import { effectiveCutoff, isPastCutoff, describeCutoff } from '../lib/cutoff.js';
 
 export const sessionsRouter = Router();
 
@@ -51,18 +52,34 @@ sessionsRouter.get('/', requireAuth, async (req, res, next) => {
     // Weekend dates have no dayCode, so nothing runs.
     const running = dayCode ? sessions.filter((s) => sessionRunsOn(s, dayCode)) : [];
 
-    const counts = await prisma.enrollment.groupBy({
-      by: ['sessionId'],
-      where: { date, sessionId: { in: running.map((s) => s.id) } },
-      _count: { _all: true },
-    });
+    const [counts, globalCutoff, sessionCutoffs] = await Promise.all([
+      prisma.enrollment.groupBy({
+        by: ['sessionId'],
+        where: { date, sessionId: { in: running.map((s) => s.id) } },
+        _count: { _all: true },
+      }),
+      prisma.cutoffConfig.findFirst({ where: { scope: 'global', sessionId: null } }),
+      prisma.cutoffConfig.findMany({ where: { sessionId: { in: running.map((s) => s.id) } } }),
+    ]);
     const countBy = new Map(counts.map((c) => [c.sessionId, c._count._all]));
+    const cutoffBySession = new Map(sessionCutoffs.map((c) => [c.sessionId, c]));
 
+    // Each session carries its own cutoff verdict: a per-session override means
+    // two rows in the same list can close at different times. Without this the
+    // browse list would offer a Sign up button the server then refuses.
     res.json({
       date,
       dayCode,
       isSchoolDay: Boolean(dayCode),
-      sessions: running.map((s) => serializeSession(s, countBy.get(s.id) ?? 0)),
+      sessions: running.map((s) => {
+        const cutoff = effectiveCutoff(globalCutoff, cutoffBySession.get(s.id));
+        const pastCutoff = isPastCutoff(date, cutoff.cutoffRule, cutoff.bellTime);
+        return {
+          ...serializeSession(s, countBy.get(s.id) ?? 0),
+          pastCutoff,
+          cutoffDescription: describeCutoff(cutoff.cutoffRule, cutoff.bellTime),
+        };
+      }),
     });
   } catch (err) {
     next(err);

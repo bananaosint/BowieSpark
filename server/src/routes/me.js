@@ -4,6 +4,7 @@ import { requireAuth } from '../auth/index.js';
 import { serializeSession } from './sessions.js';
 import { POLICY_KEYS } from '../lib/constants.js';
 import { isValidDateKey, todayKey, schoolWeekOf } from '../lib/dates.js';
+import { effectiveCutoff, isPastCutoff, describeCutoff } from '../lib/cutoff.js';
 
 export const meRouter = Router();
 
@@ -54,12 +55,35 @@ meRouter.get('/week', requireAuth, async (req, res, next) => {
       counts.map((c) => [`${c.sessionId}|${c.date}`, c._count._all])
     );
 
+    // Enrollment.locked is only ever written true by the teacher-override path;
+    // nothing sweeps rows as their cutoff passes. Reading the column raw would
+    // therefore report locked:false for a pick the server will refuse to
+    // change, and the UI would offer a "Change" button that always 409s. So the
+    // effective lock is computed here instead of trusted from storage.
+    const [globalCutoff, sessionCutoffs] = await Promise.all([
+      prisma.cutoffConfig.findFirst({ where: { scope: 'global', sessionId: null } }),
+      prisma.cutoffConfig.findMany({
+        where: { sessionId: { in: [...new Set(enrollments.map((e) => e.sessionId))] } },
+      }),
+    ]);
+    const cutoffBySession = new Map(sessionCutoffs.map((c) => [c.sessionId, c]));
+
     res.json({
       today: todayKey(),
       overrideNotice: notice?.value ?? null,
       days: week.map(({ dayCode, date }) => {
         const enrollment = byDate.get(date);
         const isOverride = enrollment?.status === 'teacher_override';
+
+        // A day the student is already in is governed by THAT session's cutoff
+        // (it decides whether they may switch out); an empty day is governed by
+        // the global rule, since any session could still be picked.
+        const cutoff = effectiveCutoff(
+          globalCutoff,
+          enrollment ? cutoffBySession.get(enrollment.sessionId) : null
+        );
+        const pastCutoff = isPastCutoff(date, cutoff.cutoffRule, cutoff.bellTime);
+
         return {
           date,
           dayCode,
@@ -67,7 +91,15 @@ meRouter.get('/week', requireAuth, async (req, res, next) => {
           // An override day shows ONLY the assigned session — the UI must not
           // offer alternates for it.
           isOverridden: isOverride,
-          locked: Boolean(enrollment?.locked) || isOverride,
+          locked: isOverride || pastCutoff,
+          pastCutoff,
+          // Why it is locked, so the UI can say so rather than just greying out.
+          lockReason: isOverride ? 'teacher_override' : pastCutoff ? 'past_cutoff' : null,
+          cutoff: {
+            rule: cutoff.cutoffRule,
+            bellTime: cutoff.bellTime,
+            description: describeCutoff(cutoff.cutoffRule, cutoff.bellTime),
+          },
           enrollment: enrollment
             ? {
                 id: enrollment.id,

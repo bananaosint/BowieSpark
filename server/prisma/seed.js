@@ -4,7 +4,7 @@ import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
 import { encodeDays } from '../src/lib/days.js';
 import { hashPassword } from '../src/auth/password.js';
-import { schoolWeekOf, todayKey } from '../src/lib/dates.js';
+import { schoolWeekOf, todayKey, fromDateKey, toDateKey } from '../src/lib/dates.js';
 import {
   POLICY_KEYS,
   STUDENT_EMAIL_DOMAIN,
@@ -191,10 +191,51 @@ async function main() {
     },
   });
 
+  // A completed week behind us, with attendance taken. Without it a student's
+  // history view is empty and the admin's no-show analytics have nothing to
+  // report — the whole demo looks like the product does not work.
+  const lastMonday = new Date(fromDateKey(week[0].date));
+  lastMonday.setDate(lastMonday.getDate() - 7);
+  const lastWeek = schoolWeekOf(toDateKey(lastMonday));
+
+  // Deterministic rather than random, so re-seeding reproduces the same demo.
+  const ATTENDANCE_CYCLE = [
+    'present', 'present', 'present', 'present', 'tardy',
+    'present', 'present', 'absent', 'present', 'cut',
+  ];
+
+  let past = 0;
+  let marks = 0;
+  for (const [dayIdx, { date }] of lastWeek.entries()) {
+    for (const [sIdx, student] of students.entries()) {
+      // Two students are chronic non-schedulers, so "students who repeatedly
+      // fail to schedule" has someone to surface.
+      if (sIdx === 5 && dayIdx % 2 === 0) continue;
+      if (sIdx === 7) continue;
+
+      const session = dailySessions[(sIdx * 2 + dayIdx) % dailySessions.length];
+      const enrollment = await prisma.enrollment.create({
+        data: { sessionId: session.id, studentId: student.id, date, status: 'self_selected', locked: true },
+      });
+      past++;
+
+      await prisma.attendance.create({
+        data: {
+          enrollmentId: enrollment.id,
+          date,
+          status: ATTENDANCE_CYCLE[(sIdx + dayIdx * 3) % ATTENDANCE_CYCLE.length],
+          recordedById: session.teacherId,
+        },
+      });
+      marks++;
+    }
+  }
+
   console.log(
     `  ${SUBJECT_TAGS.length} subject tags, ${teachers.length} teachers, ` +
       `${students.length} students, ${sessions.length} sessions, ~${created} enrollments`
   );
+  console.log(`  Plus a completed week: ${past} past enrollments, ${marks} attendance marks`);
   console.log(`  Override demo: ${overrideStudent.displayName} on ${overrideDate}`);
   console.log(`  Every seeded account signs in with password: ${DEMO_PASSWORD}`);
   console.log('Done.');
