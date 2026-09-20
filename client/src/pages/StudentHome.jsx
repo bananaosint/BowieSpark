@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api } from '../lib/api.js';
 import SessionCard from '../components/SessionCard.jsx';
 
@@ -9,6 +9,7 @@ export default function StudentHome() {
   const [tags, setTags] = useState([]);
   const [activeDate, setActiveDate] = useState(null);
   const [activeTagId, setActiveTagId] = useState(null);
+  const [teacherQuery, setTeacherQuery] = useState('');
   const [browse, setBrowse] = useState(null);
   // Two separate slots on purpose. `fatalError` means the week itself never
   // loaded and there is nothing to show. `browseError` is a transient failure
@@ -66,6 +67,16 @@ export default function StudentHome() {
     };
   }, [activeDate, activeTagId, activeDay?.isOverridden]);
 
+  // Teacher search runs over the day's already-fetched sessions. It is one
+  // day's worth of rows, so a server round-trip would buy nothing, and it
+  // composes with the subject tab rather than replacing it.
+  const query = teacherQuery.trim().toLowerCase();
+  const visible = useMemo(() => {
+    const all = browse?.sessions ?? [];
+    if (!query) return all;
+    return all.filter((s) => (s.teacher?.displayName ?? '').toLowerCase().includes(query));
+  }, [browse, query]);
+
   if (fatalError) return <p className="error">{fatalError}</p>;
   if (!week) return <p className="muted">Loading your week…</p>;
 
@@ -107,7 +118,8 @@ export default function StudentHome() {
                 <span className="notice__head">Teacher assigned</span>
                 <p className="notice__body">{week.overrideNotice}</p>
               </div>
-              <SessionCard session={activeDay.enrollment.session} locked />
+              {/* Mandatory and the only thing on this day, so it opens up front. */}
+              <SessionCard session={activeDay.enrollment.session} locked defaultExpanded />
             </>
           ) : (
             <>
@@ -139,6 +151,35 @@ export default function StudentHome() {
                 ))}
               </nav>
 
+              <div className="searchbar">
+                <label className="searchbar__label" htmlFor="teacher-search">
+                  Search by teacher
+                </label>
+                <input
+                  id="teacher-search"
+                  type="search"
+                  className="searchbar__input"
+                  value={teacherQuery}
+                  placeholder="e.g. Cowlin"
+                  autoComplete="off"
+                  onChange={(e) => setTeacherQuery(e.target.value)}
+                />
+                {query ? (
+                  <>
+                    <button
+                      type="button"
+                      className="searchbar__clear"
+                      onClick={() => setTeacherQuery('')}
+                    >
+                      Clear
+                    </button>
+                    <span className="searchbar__count">
+                      {visible.length} of {browse?.sessions.length ?? 0}
+                    </span>
+                  </>
+                ) : null}
+              </div>
+
               {browseError ? (
                 // Scoped to this panel — the weekstrip above still works, so
                 // picking another day or tab retries on its own.
@@ -152,9 +193,24 @@ export default function StudentHome() {
                 <p className="muted">No FIT on this day.</p>
               ) : browse.sessions.length === 0 ? (
                 <p className="muted">No sessions in this subject run on this day.</p>
+              ) : visible.length === 0 ? (
+                // Distinct from the line above: sessions DO run today, the
+                // search is what emptied the list.
+                <p className="muted">
+                  No sessions on this day are taught by anyone matching{' '}
+                  <strong>“{teacherQuery.trim()}”</strong>.{' '}
+                  <button
+                    type="button"
+                    className="linkish"
+                    onClick={() => setTeacherQuery('')}
+                  >
+                    Clear the search
+                  </button>{' '}
+                  to see all {browse.sessions.length}.
+                </p>
               ) : (
                 <div className="cards">
-                  {browse.sessions.map((s) => (
+                  {visible.map((s) => (
                     <SessionCard key={s.id} session={s} />
                   ))}
                 </div>
