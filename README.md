@@ -16,6 +16,12 @@ npm run db:seed        # loads the fake dataset
 npm run dev            # API on :4000, client on :5173
 ```
 
+`server/.env` is gitignored, so a fresh clone has no `DATABASE_URL` and Prisma
+would abort. `server/scripts/ensure-env.js` runs automatically ahead of
+`db:migrate`, `db:seed`, `db:reset` and `dev`, copying `.env.example` into place
+the first time. Nothing secret is ever committed — the example holds local
+defaults only.
+
 Then open <http://localhost:5173>. Use the yellow dev bar at the top to switch
 between seeded students, teachers, and the admin.
 
@@ -52,6 +58,22 @@ client/            React SPA (Vite)
 In the UI: the weekly strip, subject tabs, session browsing with live seat
 counts, and the locked teacher-override day with its policy notice. The
 teacher and admin routes are labelled shells.
+
+## House style
+
+White ground, `#B3B3B3` linework, `#B71C1C` carrying the UI — set in one place,
+`client/src/styles.css`. The scheme is fixed light; there is no dark variant.
+
+One constraint shaped the whole sheet: **`#B3B3B3` on white measures ~2.1:1
+contrast**, far under the 4.5:1 WCAG AA floor for text. So the silver is used
+only for rules, borders, frames and ornament, never to set type — secondary copy
+uses a darker neutral instead. `#B71C1C` on white measures ~6.6:1 and passes AA
+in both directions, so it can carry text, sit under white text, and act as the
+interactive color throughout.
+
+Type is a system serif for display and system sans for body. No web font is
+loaded: a district privacy review is one less conversation if the app never
+calls out to a font CDN.
 
 ## Decisions worth knowing
 

@@ -3,7 +3,9 @@
 // SQLite notes (verified against Prisma 6.19.x):
 //   - Scalar lists (String[]) are NOT supported by the sqlite connector.
 //     Session.days is therefore a JSON-encoded string; see src/lib/days.js.
-//   - Enums ARE supported (emulated as TEXT + CHECK constraint).
+//   - Enums ARE supported, but they are stored as plain TEXT with NO CHECK
+//     constraint in the emitted migration. The value set is enforced by the
+//     Prisma client only, so raw SQL could write a value not listed here.
 //   - Calendar dates are stored as "YYYY-MM-DD" strings, not DateTime.
 //     A FIT day is a local school-calendar date, not an instant; storing it
 //     as text keeps @@unique([studentId, date]) exact and timezone-proof.

@@ -39,6 +39,21 @@ meRouter.get('/week', requireAuth, async (req, res, next) => {
     // most one enrollment per student per day.
     const byDate = new Map(enrollments.map((e) => [e.date, e]));
 
+    // Seat counts are per session PER DATE, so they have to be fetched here
+    // rather than defaulted — the student reading this is themselves enrolled,
+    // so the true count is never zero.
+    const counts = await prisma.enrollment.groupBy({
+      by: ['sessionId', 'date'],
+      where: {
+        date: { in: dates },
+        sessionId: { in: [...new Set(enrollments.map((e) => e.sessionId))] },
+      },
+      _count: { _all: true },
+    });
+    const countBy = new Map(
+      counts.map((c) => [`${c.sessionId}|${c.date}`, c._count._all])
+    );
+
     res.json({
       today: todayKey(),
       overrideNotice: notice?.value ?? null,
@@ -57,7 +72,10 @@ meRouter.get('/week', requireAuth, async (req, res, next) => {
             ? {
                 id: enrollment.id,
                 status: enrollment.status,
-                session: serializeSession(enrollment.session),
+                session: serializeSession(
+                  enrollment.session,
+                  countBy.get(`${enrollment.sessionId}|${enrollment.date}`) ?? 0
+                ),
               }
             : null,
         };

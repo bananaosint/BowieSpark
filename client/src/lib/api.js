@@ -3,20 +3,28 @@
 // file and that one change together and nothing else does.
 const DEV_USER_KEY = 'fit.devUserId';
 
+// In-memory is the source of truth; localStorage only persists it across
+// reloads. If storage is blocked (private browsing, locked-down district
+// device) the app still works for the tab's lifetime instead of 401ing.
+let devUserId = null;
+
 export function getDevUserId() {
+  if (devUserId) return devUserId;
   try {
-    return localStorage.getItem(DEV_USER_KEY);
+    devUserId = localStorage.getItem(DEV_USER_KEY);
   } catch {
-    return null;
+    devUserId = null;
   }
+  return devUserId;
 }
 
 export function setDevUserId(id) {
+  devUserId = id ?? null;
   try {
     if (id) localStorage.setItem(DEV_USER_KEY, id);
     else localStorage.removeItem(DEV_USER_KEY);
   } catch {
-    /* private browsing — the header just won't persist across reloads */
+    /* storage blocked — the in-memory value above still carries the session */
   }
 }
 

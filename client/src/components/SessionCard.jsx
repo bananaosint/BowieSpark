@@ -1,34 +1,61 @@
-const DAY_SHORT = { MON: 'M', TUE: 'T', WED: 'W', THU: 'Th', FRI: 'F' };
+const WEEK = [
+  ['MON', 'M'],
+  ['TUE', 'T'],
+  ['WED', 'W'],
+  ['THU', 'Th'],
+  ['FRI', 'F'],
+];
 
 export default function SessionCard({ session, locked = false }) {
+  // Always render the full Mon–Fri run and light up the days this session
+  // meets, so two cards can be compared at a glance.
+  const runsOn = (code) =>
+    session.recurrenceType === 'daily' || session.days.includes(code);
+
   return (
     <article className={`card${session.isFull ? ' card--full' : ''}`}>
+      <div className="card__band">
+        <span className="card__tag">{session.subjectTag?.name ?? 'Other'}</span>
+        <span className={`seats${session.isFull && !locked ? ' seats--full' : ''}`}>
+          {locked ? (
+            // A locked assignment is not a seat the student can take or lose,
+            // so availability is noise here.
+            'Assigned to you'
+          ) : session.isFull ? (
+            'Full'
+          ) : (
+            <>
+              <strong>{session.seatsLeft}</strong> of {session.capacity} open
+            </>
+          )}
+        </span>
+      </div>
+
       <header className="card__head">
         <h3 className="card__title">{session.title}</h3>
-        <span className={`seats${session.isFull ? ' seats--full' : ''}`}>
-          {session.isFull ? 'Full' : `${session.seatsLeft} of ${session.capacity} open`}
-        </span>
+        <p className="card__teacher">{session.teacher?.displayName ?? 'Unassigned'}</p>
       </header>
-
-      <p className="card__teacher">
-        {session.teacher?.displayName ?? 'Unassigned'}
-        {session.subjectTag ? <> &middot; {session.subjectTag.name}</> : null}
-      </p>
 
       {session.description ? <p className="card__desc">{session.description}</p> : null}
 
       {session.prerequisites ? (
         // Build sheet §3: display-only. Never a signup gate.
         <p className="card__prereq">
-          <strong>Prerequisites:</strong> {session.prerequisites}
+          <span className="card__prereq-label">Prerequisites</span>
+          {session.prerequisites}
         </p>
       ) : null}
 
       <footer className="card__foot">
-        <span className="card__days">
-          {session.recurrenceType === 'daily'
-            ? 'Every day'
-            : session.days.map((d) => DAY_SHORT[d] ?? d).join(' · ')}
+        <span
+          className="card__days"
+          title={session.recurrenceType === 'daily' ? 'Meets every school day' : 'Meets on the highlighted days'}
+        >
+          {WEEK.map(([code, short]) => (
+            <span key={code} className={`card__day${runsOn(code) ? ' card__day--on' : ''}`}>
+              {short}
+            </span>
+          ))}
         </span>
         <button type="button" disabled title="Signing up is not wired up in the skeleton">
           {locked ? 'Locked' : 'Sign up'}

@@ -6,13 +6,18 @@
   "main": "src/index.js",
   "scripts": {
     "dev": "node --watch src/index.js",
+    "predev": "node scripts/ensure-env.js",
     "start": "node src/index.js",
     "db:generate": "prisma generate",
+    "predb:migrate": "node scripts/ensure-env.js",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
+    "predb:seed": "node scripts/ensure-env.js",
     "db:seed": "node prisma/seed.js",
     "db:studio": "prisma studio",
-    "db:reset": "prisma migrate reset --force"
+    "predb:reset": "node scripts/ensure-env.js",
+    "db:reset": "prisma migrate reset --force",
+    "ensure-env": "node scripts/ensure-env.js"
   },
   "prisma": {
     "seed": "node prisma/seed.js"

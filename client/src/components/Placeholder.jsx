@@ -2,6 +2,7 @@
 export default function Placeholder({ title, blurb, items }) {
   return (
     <section className="placeholder">
+      <span className="placeholder__stamp">Not built yet</span>
       <h2>{title}</h2>
       <p className="placeholder__blurb">{blurb}</p>
       <ul className="placeholder__list">

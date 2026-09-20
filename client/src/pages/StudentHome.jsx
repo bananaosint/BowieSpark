@@ -10,7 +10,12 @@ export default function StudentHome() {
   const [activeDate, setActiveDate] = useState(null);
   const [activeTagId, setActiveTagId] = useState(null);
   const [browse, setBrowse] = useState(null);
-  const [error, setError] = useState(null);
+  // Two separate slots on purpose. `fatalError` means the week itself never
+  // loaded and there is nothing to show. `browseError` is a transient failure
+  // of one session query — it must NOT unmount the weekstrip and tabs, because
+  // those are the only controls that can trigger a retry.
+  const [fatalError, setFatalError] = useState(null);
+  const [browseError, setBrowseError] = useState(null);
 
   // Week + tabs load once; both are stable for the whole visit.
   useEffect(() => {
@@ -24,7 +29,7 @@ export default function StudentHome() {
         const today = weekRes.days.find((d) => d.isToday) ?? weekRes.days[0];
         setActiveDate(today?.date ?? null);
       } catch (err) {
-        if (!cancelled) setError(err.message);
+        if (!cancelled) setFatalError(err.message);
       }
     })();
     return () => {
@@ -42,6 +47,10 @@ export default function StudentHome() {
       return;
     }
     let cancelled = false;
+    // Drop the previous day's results immediately so stale sessions can never
+    // render under the new day's heading while the next query is in flight.
+    setBrowse(null);
+    setBrowseError(null);
     (async () => {
       try {
         const params = new URLSearchParams({ date: activeDate });
@@ -49,7 +58,7 @@ export default function StudentHome() {
         const res = await api(`/sessions?${params}`);
         if (!cancelled) setBrowse(res);
       } catch (err) {
-        if (!cancelled) setError(err.message);
+        if (!cancelled) setBrowseError(err.message);
       }
     })();
     return () => {
@@ -57,7 +66,7 @@ export default function StudentHome() {
     };
   }, [activeDate, activeTagId, activeDay?.isOverridden]);
 
-  if (error) return <p className="error">{error}</p>;
+  if (fatalError) return <p className="error">{fatalError}</p>;
   if (!week) return <p className="muted">Loading your week…</p>;
 
   return (
@@ -94,7 +103,10 @@ export default function StudentHome() {
 
           {activeDay.isOverridden ? (
             <>
-              <p className="notice">{week.overrideNotice}</p>
+              <div className="notice">
+                <span className="notice__head">Teacher assigned</span>
+                <p className="notice__body">{week.overrideNotice}</p>
+              </div>
               <SessionCard session={activeDay.enrollment.session} locked />
             </>
           ) : (
@@ -127,7 +139,14 @@ export default function StudentHome() {
                 ))}
               </nav>
 
-              {!browse ? (
+              {browseError ? (
+                // Scoped to this panel — the weekstrip above still works, so
+                // picking another day or tab retries on its own.
+                <p className="error">
+                  Couldn&rsquo;t load sessions for this day. {browseError} Pick another day or
+                  tab to try again.
+                </p>
+              ) : !browse ? (
                 <p className="muted">Loading sessions…</p>
               ) : !browse.isSchoolDay ? (
                 <p className="muted">No FIT on this day.</p>
