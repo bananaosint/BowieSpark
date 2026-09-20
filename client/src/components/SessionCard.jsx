@@ -8,7 +8,15 @@ const WEEK = [
   ['FRI', 'F'],
 ];
 
-export default function SessionCard({ session, locked = false, defaultExpanded = false }) {
+export default function SessionCard({
+  session,
+  locked = false,
+  defaultExpanded = false,
+  onSignUp,
+  isCurrentPick = false,
+  busy = false,
+  disabledReason = null,
+}) {
   const [expanded, setExpanded] = useState(defaultExpanded);
 
   // Always render the full Mon–Fri run and light up the days this session
@@ -95,9 +103,24 @@ export default function SessionCard({ session, locked = false, defaultExpanded =
               </span>
             ))}
           </span>
-          <button type="button" disabled title="Signing up is not wired up yet">
-            {locked ? 'Locked' : 'Sign up'}
-          </button>
+          {isCurrentPick ? (
+            <span className="card__picked">Your pick</span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onSignUp?.(session)}
+              disabled={locked || session.isFull || busy || !onSignUp || Boolean(disabledReason)}
+              // The reason a button is dead belongs on the button, not in a
+              // paragraph somewhere else on the page.
+              title={
+                locked
+                  ? 'Your teacher assigned this — it cannot be changed.'
+                  : disabledReason ?? (session.isFull ? 'This session is full.' : undefined)
+              }
+            >
+              {locked ? 'Locked' : busy ? 'Saving…' : session.isFull ? 'Full' : 'Sign up'}
+            </button>
+          )}
         </footer>
       </div>
     </article>

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { prisma } from '../db.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth } from '../auth/index.js';
 import { serializeSession } from './sessions.js';
 import { POLICY_KEYS } from '../lib/constants.js';
 import { isValidDateKey, todayKey, schoolWeekOf } from '../lib/dates.js';

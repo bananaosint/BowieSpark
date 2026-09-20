@@ -3,7 +3,7 @@ import { prisma } from '../db.js';
 import { decodeDays, sessionRunsOn } from '../lib/days.js';
 import { DAY_CODES } from '../lib/constants.js';
 import { isValidDateKey, todayKey, dayCodeFor } from '../lib/dates.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth } from '../auth/index.js';
 
 export const sessionsRouter = Router();
 

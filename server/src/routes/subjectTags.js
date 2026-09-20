@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { prisma } from '../db.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth } from '../auth/index.js';
 
 export const subjectTagsRouter = Router();
 

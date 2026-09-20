@@ -853,3 +853,52 @@ code {
 /* A notice with no banner header — used for inline status messages. */
 .notice--plain { padding: 13px 16px; }
 .notice--plain .notice__head { display: none; }
+
+/* ================================================= student pick controls */
+.pickbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 0 0 4px;
+}
+
+/* Success confirmation. Crimson is the UI colour and also carries errors, so
+   success is marked by a checkmark and a green-free neutral frame rather than
+   by colour alone — colour is never the only signal. */
+.flash {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 12px 15px;
+  background: var(--paper-band);
+  border: 2px solid var(--silver);
+  border-left: 9px solid var(--crimson);
+  box-shadow: var(--lift-sm);
+  font-weight: 600;
+}
+.flash::before {
+  content: "✓";
+  flex: none;
+  width: 21px;
+  height: 21px;
+  display: grid;
+  place-items: center;
+  background: var(--crimson);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.card__picked {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+  color: #fff;
+  background: var(--crimson);
+  border: 2px solid var(--crimson-deep);
+  box-shadow: var(--lift-sm);
+  padding: 7px 14px;
+}
