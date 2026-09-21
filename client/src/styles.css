@@ -80,8 +80,7 @@ code {
 .searchbar__label,
 .weekstrip__dow,
 .weekstrip__lock,
-.pill,
-.placeholder__stamp {
+.pill {
   text-transform: uppercase;
   letter-spacing: 0.1em;
   font-weight: 700;
@@ -634,63 +633,12 @@ code {
   cursor: not-allowed;
 }
 
-/* ============================================================= placeholder */
-.placeholder {
-  position: relative;
-  background: var(--paper);
-  border: 3px double var(--silver);
-  box-shadow: var(--lift);
-  padding: 30px 32px 34px;
-}
-/* The heading rule is a flex:1 ::after, so without this it runs the full width
-   and terminates underneath the stamp. Reserve the stamp's lane. */
-.placeholder h2 { margin-top: 0; padding-right: 140px; }
-.placeholder__stamp {
-  position: absolute;
-  top: 18px;
-  right: -8px;
-  font-size: 10px;
-  color: #fff;
-  background: var(--crimson);
-  border: 2px solid var(--crimson-deep);
-  box-shadow: 3px 3px 0 var(--silver);
-  padding: 5px 13px;
-  transform: rotate(3deg);
-}
-.placeholder__blurb { color: var(--ink-soft); max-width: 64ch; }
-.placeholder__list {
-  font-size: 14px;
-  list-style: none;
-  padding: 0;
-  margin: 22px 0 0;
-  border-top: 2px solid var(--silver);
-}
-.placeholder__list li {
-  position: relative;
-  padding: 12px 6px 12px 28px;
-  border-bottom: 1px solid var(--silver-hair);
-}
-.placeholder__list li::before {
-  content: "";
-  position: absolute;
-  left: 6px;
-  top: 18px;
-  width: 9px;
-  height: 9px;
-  background: var(--crimson);
-  transform: rotate(45deg);
-}
-
 /* ============================================================ narrow width */
 @media (max-width: 620px) {
   .topbar { gap: 14px; }
   .topbar__who { margin-left: 0; border-left: none; padding-left: 0; }
   .devbar__note { margin-left: 0; flex-basis: 100%; }
   .shell h2 { font-size: 22px; }
-  .placeholder { padding: 26px 20px 30px; }
-  /* Stamp drops into the flow at narrow widths, so the heading reclaims its lane. */
-  .placeholder h2 { padding-right: 0; }
-  .placeholder__stamp { position: static; display: inline-block; margin-bottom: 14px; transform: none; }
 }
 
 /* ============================================================ dev bar modes */
