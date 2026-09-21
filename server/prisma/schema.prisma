@@ -1,4 +1,4 @@
-// FIT & Club Scheduling Platform — v1 data model (build sheet §4)
+// Bowie Spark — v1 data model (build sheet §4)
 //
 // SQLite notes (verified against Prisma 6.19.x):
 //   - Scalar lists (String[]) are NOT supported by the sqlite connector.

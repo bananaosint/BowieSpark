@@ -1,5 +1,5 @@
-FIT & CLUB SCHEDULING PLATFORM
-Getting it running on your computer
+BOWIE SPARK
+FIT & club scheduling — getting it running on your computer
 ===================================================================
 
 You need Node.js 20 or newer. That is the only thing to install --

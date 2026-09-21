@@ -1,5 +1,5 @@
 /* ===========================================================================
-   FIT Scheduling — house style
+   Bowie Spark — house style
    White ground, #B3B3B3 linework, #B71C1C carrying the UI.
 
    Two measurements shape everything below:
@@ -139,26 +139,30 @@ code {
   border-bottom: 5px solid var(--crimson);
   box-shadow: inset 0 -7px 0 var(--paper), inset 0 -8px 0 var(--silver);
 }
-.topbar h1 {
+/* Wordmark: the Bowie bulldog beside the name. The mascot already carries the
+   crimson and silver, so it replaces the drawn crest that stood in for it. */
+.wordmark {
   margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.wordmark__logo {
+  /* Big enough for the mascot to read as a bulldog rather than a grey blob —
+     at 40px the collar spikes and the face all mush together. */
+  width: 52px;
+  height: auto;
+  flex: none;
+  /* Reserve the space before the PNG decodes so the header does not jump. */
+  aspect-ratio: 241 / 256;
+}
+.wordmark__name {
   font-family: var(--serif);
   font-size: 23px;
   font-weight: 700;
   letter-spacing: 0.02em;
   text-transform: uppercase;
-  display: flex;
-  align-items: center;
-  gap: 11px;
-}
-/* Crest mark standing in for a school seal. */
-.topbar h1::before {
-  content: "";
-  width: 17px;
-  height: 17px;
-  background: var(--crimson);
-  border: 3px double var(--paper);
-  outline: 2px solid var(--crimson);
-  transform: rotate(45deg);
+  line-height: 1;
 }
 
 .topbar__nav { display: flex; gap: 8px; flex-wrap: wrap; }

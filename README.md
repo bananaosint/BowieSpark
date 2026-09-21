@@ -1,4 +1,4 @@
-# FIT & Club Scheduling Platform
+# Bowie Spark
 
 Student self-scheduling for Flexible Instruction Time and club signups, built
 for a ~3,000-student AISD high school. See `buildplan.txt` for the full spec.

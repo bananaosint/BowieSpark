@@ -2,7 +2,7 @@
   "name": "bowiespark",
   "private": true,
   "version": "0.1.0",
-  "description": "FIT & Club Scheduling Platform — student self-scheduling for flexible instruction time.",
+  "description": "Bowie Spark — student self-scheduling for FIT (Flexible Instruction Time) and club signups.",
   "type": "module",
   "workspaces": [
     "server",

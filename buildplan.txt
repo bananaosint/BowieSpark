@@ -1,4 +1,4 @@
-FIT & Club Scheduling Platform — Build Sheet
+Bowie Spark (FIT & Club Scheduling Platform) — Build Sheet
 Project: A student self-scheduling system for FIT (Flexible Instruction Time) and club signups, modeled on Enriching Students, built for a ~3,000-student AISD high school.
 Status: Pre-build / v1 spec locked. Fake data during beta. District engagement to run in parallel with development.
 

@@ -1,0 +1,5 @@
+# Keep the original mascot artwork in the repo for provenance, but leave it out
+# of `git archive` — the release zip is something people download to RUN, and
+# the 230KB source would nearly triple it for a file the app never loads.
+design/ export-ignore
+.gitattributes export-ignore

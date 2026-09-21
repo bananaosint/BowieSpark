@@ -1,6 +1,7 @@
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './lib/auth.jsx';
 import DevBar from './components/DevBar.jsx';
+import Wordmark from './components/Wordmark.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import StudentHome from './pages/StudentHome.jsx';
 import SchedulePage from './pages/SchedulePage.jsx';
@@ -38,7 +39,7 @@ export default function App() {
   if (status === 'offline') {
     return (
       <main className="shell">
-        <h1>FIT Scheduling</h1>
+        <Wordmark />
         <p className="error">Can&rsquo;t reach the server. {error}</p>
         <p className="muted">
           Is the API running? Try <code>npm run dev</code> from the project root, then{' '}
@@ -56,7 +57,7 @@ export default function App() {
       <>
         <DevBar />
         <header className="topbar topbar--bare">
-          <h1>FIT Scheduling</h1>
+          <Wordmark />
         </header>
         <LoginPage />
       </>
@@ -67,7 +68,7 @@ export default function App() {
     <>
       <DevBar />
       <header className="topbar">
-        <h1>FIT Scheduling</h1>
+        <Wordmark />
         <nav className="topbar__nav">
           {NAV.filter((item) => item.roles.includes(user.role)).map((item) => (
             <NavLink
