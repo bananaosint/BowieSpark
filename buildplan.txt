@@ -96,7 +96,7 @@ Frontend: React (Vite) — a standalone SPA rather than a full-stack framework
 Backend: Node.js + Express, as a separate API — confirmed, keeps the whole stack in JavaScript
 ORM: Prisma — works the same way against Express, and has first-class SQLite support
 Auth: Auth.js's core library supports Express directly (not just Next.js), so the domain-gated email/password + Google OAuth plan still holds
-Hosting: A Linode VPS (your dad's) running both pieces — the React build served as static files via nginx, and the Express API kept alive with a process manager (pm2 or a systemd service). This is a real step up from a home server: a proper datacenter box means a stable IP, real uptime, and the ability to actually configure firewalling/patching the way a district IT review would expect to see.
+Hosting: A Linode VPS running both pieces — the React build served as static files via nginx, and the Express API kept alive with a process manager (pm2 or a systemd service). A proper datacenter box means a stable IP, real uptime, and the ability to configure firewalling and patching the way a district IT review would expect to see.
 Still to set up on the VPS: nginx as reverse proxy, TLS via Let's Encrypt (free, auto-renewing), a firewall (ufw or Linode's Cloud Firewall), and a process manager for the Express app so it restarts on crash/reboot
 Database: SQLite — a single file, which fits naturally with the single-VPS setup (no separate DB server to run, trivial to back up by copying the file, and Prisma treats it as a first-class option). One thing worth watching before the real v2 rollout: SQLite serializes writes (one writer at a time), which is fine for v1's fake-data beta and likely fine even at 3,000 students for normal usage, but worth load-testing the exact "everyone signs up the second the window opens" spike scenario before real students depend on it. If that ever becomes a bottleneck, migrating to Postgres later is a straightforward Prisma schema change rather than a rewrite.
 
@@ -108,7 +108,7 @@ v1 stretch / v2: Google OAuth (also via Auth.js) — since AISD accounts are Goo
  Identify a sponsor inside AISD (counselor, instructional tech coordinator, or admin) to champion the tool internally
  Confirm AISD's ed-tech vetting process (many TX districts use a platform like LearnPlatform, or a direct IT/legal review)
  Prepare to sign whatever Data Privacy Agreement AISD requires (Texas SB 820 sets baseline requirements for ed-tech vendors serving public schools) before any real student data touches the system
- Confirm hosting meets whatever data-residency/security bar AISD sets (US-based, encrypted at rest/in transit — a real cloud host, not a home server, makes this checklist much shorter)
+ Confirm hosting meets whatever data-residency/security bar AISD sets (US-based, encrypted at rest and in transit)
  Scope what SIS data is actually requested (roster + schedule only, ideally — avoid ever requesting grades/IEP/discipline data unless a feature genuinely needs it)
  Get IT's read on whether Google OAuth restricted to the district domain satisfies their identity-verification bar, or whether they'll require full Clever/ClassLink SSO
 

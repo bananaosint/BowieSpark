@@ -206,7 +206,7 @@ the admin round-trip proves annoying in practice.
 - [ ] Load-test the signup rush against SQLite at 3,000 students; Postgres is a
       Prisma connector change, not a rewrite
 - [ ] TLS, firewall and a process manager on the VPS (build sheet §5)
-- [ ] Scrub `buildplan.txt` of anything you would not hand to district IT
+- [x] `buildplan.txt` scrubbed of personal detail before the repo went public
 
 ## Known advisories
 
