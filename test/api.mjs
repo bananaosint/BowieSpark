@@ -419,11 +419,25 @@ section('ATTENDANCE — cannot be recorded before the day happens');
 
 section('ANALYTICS — future school days are not "missed"');
 {
-  const a = (await admin.call(`/admin/analytics?from=${monday}&to=${week.days[4].date}`)).body;
-  // The whole range is in the future, so nobody can have missed any of it.
-  ck('a wholly future range reports no missed days', (a?.unscheduledStudents ?? []).every((r) => r.missedDays > 0) === true || a.unscheduledStudents.length === 0, JSON.stringify(a?.unscheduledStudents?.slice(0, 2)));
-  ck('  ...and says what it measured against', typeof a?.range?.elapsedSchoolDays === 'number', JSON.stringify(a?.range));
-  ck('  ...counting zero elapsed days in a future window', a.range.elapsedSchoolDays === 0, String(a?.range?.elapsedSchoolDays));
+  // Anchored well clear of today rather than reusing the seeded week. That
+  // week starts on a Monday, so the moment the real date rolls onto it the
+  // range stops being "future" and a hardcoded zero starts failing for a
+  // reason that has nothing to do with the code.
+  const shift = (n) => {
+    const d = new Date();
+    d.setDate(d.getDate() + n);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const a = (await admin.call(`/admin/analytics?from=${shift(14)}&to=${shift(18)}`)).body;
+
+  ck('  a future window reports what it measured against', typeof a?.range?.elapsedSchoolDays === 'number', JSON.stringify(a?.range));
+  ck('  ...counting zero elapsed days', a.range.elapsedSchoolDays === 0, String(a?.range?.elapsedSchoolDays));
+  ck('  ...so nobody is branded a non-scheduler', (a.unscheduledStudents ?? []).length === 0, JSON.stringify(a?.unscheduledStudents?.slice(0, 2)));
+
+  // And the invariant that must hold for ANY window, whatever today is.
+  const b = (await admin.call(`/admin/analytics?from=${monday}&to=${week.days[4].date}`)).body;
+  ck('  elapsed days never exceed school days in range', b.range.elapsedSchoolDays <= b.range.schoolDays, JSON.stringify(b?.range));
+  ck('  ...and missed days never exceed elapsed days', (b.unscheduledStudents ?? []).every((r) => r.missedDays <= b.range.elapsedSchoolDays), JSON.stringify(b?.unscheduledStudents?.slice(0, 2)));
 }
 
 section('ROLE BOUNDARIES');
