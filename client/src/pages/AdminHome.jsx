@@ -67,6 +67,9 @@ function TagsPanel({ say, oops }) {
       setTags((await api('/admin/subject-tags')).subjectTags);
     } catch (err) {
       oops(err);
+      // Leaving this null would keep the panel on "Loading…" forever,
+      // underneath an error banner explaining that it already failed.
+      setTags([]);
     }
   }, [oops]);
 
@@ -224,6 +227,7 @@ function PolicyPanel({ say, oops }) {
       setDraft(Object.fromEntries(res.policyText.map((r) => [r.key, r.value])));
     } catch (err) {
       oops(err);
+      setRows([]);
     }
   }, [oops]);
 
@@ -292,6 +296,7 @@ function CutoffPanel({ say, oops }) {
       setBell(res.global?.bellTime ?? '09:30');
     } catch (err) {
       oops(err);
+      setCfg({ global: null, perSession: [] });
     }
   }, [oops]);
 
@@ -401,6 +406,7 @@ function UsersPanel({ say, oops }) {
       setUsers((await api(`/admin/users?${params}`)).users);
     } catch (err) {
       oops(err);
+      setUsers([]);
     }
   }, [q, role, oops]);
 
@@ -533,6 +539,7 @@ function AnalyticsPanel({ oops }) {
       setData(await api(`/admin/analytics?from=${from}&to=${to}`));
     } catch (err) {
       oops(err);
+      setData({ usageBySubject: [], usageByTeacher: [], unscheduledStudents: [] });
     }
   }, [from, to, oops]);
 

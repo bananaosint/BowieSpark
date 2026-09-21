@@ -32,29 +32,45 @@ export default function TeacherHome() {
   const [error, setError] = useState(null);
   const [flash, setFlash] = useState(null);
 
-  const load = useCallback(async (forDate) => {
+  // Fetch and state-write are split so the effect can drop a response that
+  // arrived after the user already moved to another date. Writing inside the
+  // fetch helper put the setState calls outside the effect's `cancelled`
+  // guard, letting a slow response for an old date overwrite a newer one.
+  const fetchData = useCallback(async (forDate) => {
     const [s, t] = await Promise.all([
       api(`/teacher/sessions?date=${forDate}`),
       api('/subject-tags'),
     ]);
-    setSessions(s.sessions);
-    setTags(t.subjectTags);
-    return s.sessions;
+    return { sessions: s.sessions, tags: t.subjectTags };
   }, []);
+
+  const load = useCallback(
+    async (forDate) => {
+      const data = await fetchData(forDate);
+      setSessions(data.sessions);
+      setTags(data.tags);
+      return data.sessions;
+    },
+    [fetchData]
+  );
 
   useEffect(() => {
     let cancelled = false;
-    load(date)
-      .then((list) => {
+    fetchData(date)
+      .then((data) => {
         if (cancelled) return;
+        setSessions(data.sessions);
+        setTags(data.tags);
         // Keep the current selection if it still exists, else pick the first.
-        setSelectedId((cur) => (list.some((s) => s.id === cur) ? cur : list[0]?.id ?? null));
+        setSelectedId((cur) =>
+          data.sessions.some((s) => s.id === cur) ? cur : data.sessions[0]?.id ?? null
+        );
       })
       .catch((err) => !cancelled && setError(err.message));
     return () => {
       cancelled = true;
     };
-  }, [load, date]);
+  }, [fetchData, date]);
 
   const selected = sessions?.find((s) => s.id === selectedId) ?? null;
 
@@ -116,6 +132,12 @@ export default function TeacherHome() {
 
       {editing ? (
         <SessionForm
+          // Without a key React reuses the mounted instance when `editing`
+          // goes truthy -> truthy (session A -> session B, or A -> 'new').
+          // The useState initializers never re-run, so the heading and the
+          // save target follow the NEW session while every field still holds
+          // the OLD one's values — and Save writes A's data onto B.
+          key={editing === 'new' ? 'new' : editing.id}
           tags={tags}
           session={editing === 'new' ? null : editing}
           onCancel={() => setEditing(null)}

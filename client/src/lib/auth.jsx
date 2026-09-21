@@ -90,6 +90,11 @@ export function AuthProvider({ children }) {
 
   const toggleDevView = useCallback(
     async (on) => {
+      // Entering dev view has to end any real session first. The server only
+      // consults the impersonation header when no session cookie resolves, so
+      // leaving a live cookie in place made the user switcher inert — and dev
+      // view hides Sign out, so there was no way back out of that state.
+      if (on) await apiPost('/auth/logout').catch(() => {});
       setDevView(on);
       setDevViewState(on);
       if (!on) setDevUserId(null);

@@ -12,6 +12,16 @@ const WORD_LIMIT = 50;
 const countWords = (text) => (text.trim() ? text.trim().split(/\s+/).length : 0);
 
 export default function SessionForm({ tags, session, onSave, onCancel }) {
+  // An admin can hide a subject tab that existing sessions still point at.
+  // The hidden tag is absent from `tags`, so the <select> would render blank
+  // and submit whatever happened to be first — silently re-filing the session
+  // under a different subject. Carry the current tag as an explicit option.
+  const current = session?.subjectTag;
+  const tagOptions =
+    current && !tags.some((t) => t.id === current.id)
+      ? [...tags, { ...current, hidden: true }]
+      : tags;
+
   const [title, setTitle] = useState(session?.title ?? '');
   const [subjectTagId, setSubjectTagId] = useState(session?.subjectTag?.id ?? tags[0]?.id ?? '');
   const [capacity, setCapacity] = useState(session?.capacity ?? 20);
@@ -81,9 +91,10 @@ export default function SessionForm({ tags, session, onSave, onCancel }) {
         <label className="field">
           <span className="field__label">Subject tab</span>
           <select value={subjectTagId} onChange={(e) => setSubjectTagId(e.target.value)} required>
-            {tags.map((t) => (
+            {tagOptions.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.name}
+                {t.hidden ? ' (hidden)' : ''}
               </option>
             ))}
           </select>

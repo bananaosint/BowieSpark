@@ -289,7 +289,11 @@ export default function StudentHome() {
                       isCurrentPick={s.id === currentPickId}
                       busy={savingId === s.id}
                       disabledReason={
-                        canEnroll ? null : 'Only students can sign up for FIT sessions.'
+                        !canEnroll
+                          ? 'Only students can sign up for FIT sessions.'
+                          : activeDay.locked
+                            ? 'Your pick for this day is locked in and cannot be changed.'
+                            : null
                       }
                     />
                   ))}

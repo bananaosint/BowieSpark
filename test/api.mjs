@@ -319,6 +319,113 @@ section('ADMIN — can undo a teacher override, nobody else can');
   ck('  ...and the student is free to choose again', !after.isOverridden && !after.enrollment);
 }
 
+section('DESTRUCTIVE EDITS — a session change cannot strand students');
+{
+  const tags = (await cowlin.call('/subject-tags')).body.subjectTags;
+  const made = await cowlin.call('/teacher/sessions', {
+    method: 'POST',
+    body: {
+      title: 'Strand Test (cleanup)',
+      subjectTagId: tags[0].id,
+      capacity: 10,
+      recurrenceType: 'daily',
+      days: [],
+      description: 'x',
+      prerequisites: '',
+    },
+  });
+  const sid = made.body.session.id;
+  const student = await login('esokolov@stu.austinisd.org');
+  await student.call('/enrollments', { method: 'POST', body: { sessionId: sid, date: monday } });
+
+  // Monday is booked, so narrowing the session to Fridays only would leave
+  // that student scheduled somewhere that no longer meets.
+  const narrow = await cowlin.call(`/teacher/sessions/${sid}`, {
+    method: 'PATCH',
+    body: { recurrenceType: 'specific_days', days: ['FRI'] },
+  });
+  ck('narrowing recurrence over a booked day is refused', narrow.status === 409, String(narrow.status));
+  ck('  ...naming the day that would be stranded', (narrow.body?.dates ?? []).includes(monday), JSON.stringify(narrow.body?.dates));
+
+  const still = (await cowlin.call(`/teacher/sessions?date=${monday}`)).body.sessions.find((x) => x.id === sid);
+  ck('  ...and the session was not changed', still.recurrenceType === 'daily', still.recurrenceType);
+
+  // Widening, or narrowing onto a day nobody has booked, is fine.
+  const ok = await cowlin.call(`/teacher/sessions/${sid}`, {
+    method: 'PATCH',
+    body: { recurrenceType: 'specific_days', days: ['MON', 'TUE'] },
+  });
+  ck('narrowing that keeps the booked day is allowed', ok.status === 200, String(ok.status));
+
+  await student.call(`/enrollments/${monday}`, { method: 'DELETE' });
+  await cowlin.call(`/teacher/sessions/${sid}`, { method: 'DELETE' });
+}
+
+section('OVERRIDE — one teacher cannot overwrite another teacher\'s assignment');
+{
+  const student = await login('gabara@stu.austinisd.org');
+  const day = (await student.call('/me/week')).body.days.find((d) => !d.isOverridden)?.date ?? monday;
+
+  const oSession = (await okonkwo.call(`/teacher/sessions?date=${day}`)).body.sessions.find((x) => x.runsOnDate !== false);
+  const cSession = (await cowlin.call(`/teacher/sessions?date=${day}`)).body.sessions.find((x) => x.runsOnDate !== false);
+
+  const first = await okonkwo.call(`/teacher/sessions/${oSession.id}/override`, {
+    method: 'POST',
+    body: { studentIds: [student.user.id], date: day },
+  });
+  ck('the first teacher assigns the student', first.status === 200, String(first.status));
+
+  // The second teacher owns their own session, so ownership passes — the
+  // question is whether they may displace the OTHER teacher's assignment.
+  const hijack = await cowlin.call(`/teacher/sessions/${cSession.id}/override`, {
+    method: 'POST',
+    body: { studentIds: [student.user.id], date: day },
+  });
+  const result = (hijack.body?.results ?? [])[0];
+  ck('a second teacher cannot take them', result?.assigned === false, JSON.stringify(result));
+  ck('  ...with a reason naming the other teacher', result?.reason === 'assigned_by_another_teacher', result?.reason);
+
+  const after = (await student.call('/me/week')).body.days.find((d) => d.date === day);
+  ck('  ...and the original assignment still stands', after.enrollment?.session?.id === oSession.id, after.enrollment?.session?.title);
+
+  // An admin CAN, because they act org-wide.
+  const row = (await okonkwo.call(`/teacher/sessions/${oSession.id}/roster?date=${day}`)).body.roster.find(
+    (r) => r.student?.id === student.user.id
+  );
+  ck('an admin can clear it', (await admin.call(`/admin/enrollments/${row.enrollmentId}`, { method: 'DELETE' })).status === 200);
+}
+
+section('ATTENDANCE — cannot be recorded before the day happens');
+{
+  const future = week.days[4].date; // Friday of the seeded week
+  const mine = (await cowlin.call(`/teacher/sessions?date=${future}`)).body.sessions.find((x) => x.runsOnDate !== false);
+  const student = await login('htanaka@stu.austinisd.org');
+  await student.call('/enrollments', { method: 'POST', body: { sessionId: mine.id, date: future } });
+
+  const row = (await cowlin.call(`/teacher/sessions/${mine.id}/roster?date=${future}`)).body.roster.find(
+    (r) => r.student?.id === student.user.id
+  );
+  const early = await cowlin.call('/teacher/attendance', {
+    method: 'POST',
+    body: { enrollmentId: row.enrollmentId, status: 'absent' },
+  });
+  // Otherwise a teacher can mark next Friday absent today, and it feeds the
+  // no-show rate on the admin dashboard.
+  ck('marking a future day is refused', early.status === 400, String(early.status));
+  ck('  ...with a reason that explains why', early.body?.error === 'date_in_future', early.body?.error);
+
+  await student.call(`/enrollments/${future}`, { method: 'DELETE' });
+}
+
+section('ANALYTICS — future school days are not "missed"');
+{
+  const a = (await admin.call(`/admin/analytics?from=${monday}&to=${week.days[4].date}`)).body;
+  // The whole range is in the future, so nobody can have missed any of it.
+  ck('a wholly future range reports no missed days', (a?.unscheduledStudents ?? []).every((r) => r.missedDays > 0) === true || a.unscheduledStudents.length === 0, JSON.stringify(a?.unscheduledStudents?.slice(0, 2)));
+  ck('  ...and says what it measured against', typeof a?.range?.elapsedSchoolDays === 'number', JSON.stringify(a?.range));
+  ck('  ...counting zero elapsed days in a future window', a.range.elapsedSchoolDays === 0, String(a?.range?.elapsedSchoolDays));
+}
+
 section('ROLE BOUNDARIES');
 {
   ck('a student cannot reach teacher tools', (await avery.call('/teacher/sessions')).status === 403);

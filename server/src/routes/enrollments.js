@@ -197,6 +197,18 @@ enrollmentsRouter.post('/', requireAuth, async (req, res, next) => {
     let enrolledCount;
     try {
       ({ enrollment, enrolledCount } = await prisma.$transaction(async (tx) => {
+        // The override check earlier in this handler read the row before the
+        // transaction opened. A teacher assigning this student in the meantime
+        // would otherwise be silently overwritten by the upsert below — the
+        // student would walk out of a mandatory session and the teacher would
+        // never know. Re-read inside the transaction and refuse.
+        const current = await tx.enrollment.findUnique({
+          where: { studentId_date: { studentId: req.user.id, date } },
+        });
+        if (current?.status === 'teacher_override') {
+          throw Object.assign(new Error('locked'), { fitLocked: true });
+        }
+
         const row = await tx.enrollment.upsert(upsertArgs);
 
         if (isSwitch) {
@@ -221,6 +233,13 @@ enrollmentsRouter.post('/', requireAuth, async (req, res, next) => {
         return res.status(409).json({
           error: 'session_full',
           message: `${session.title} filled up while you were choosing. Try another session.`,
+        });
+      }
+      if (err?.fitLocked) {
+        return res.status(409).json({
+          error: 'locked_by_teacher',
+          message:
+            'A teacher assigned you to a session for that day while you were choosing. Ask them if it needs to change.',
         });
       }
       throw err;

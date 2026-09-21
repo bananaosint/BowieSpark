@@ -308,6 +308,42 @@ teacherRouter.patch('/sessions/:id', async (req, res, next) => {
       }
     }
 
+    // Narrowing WHEN a session meets is as destructive as shrinking capacity,
+    // and was previously unguarded. The enrollment rows survive the edit, the
+    // session no longer runs on those days, and once each day's cutoff passes
+    // the student can neither cancel nor re-pick: they are recorded as
+    // scheduled somewhere that does not meet, sitting on a roster the
+    // teacher's own UI labels "doesn't meet on this date".
+    if (data.recurrenceType !== undefined || data.days !== undefined) {
+      const nextType = data.recurrenceType ?? existing.recurrenceType;
+      const nextDays = decodeDays(data.days !== undefined ? data.days : existing.days);
+      const stillMeets = (dateKey) => {
+        const code = dayCodeFor(dateKey);
+        if (!code) return false;
+        return nextType === 'daily' || nextDays.includes(code);
+      };
+
+      const booked = await prisma.enrollment.findMany({
+        where: { sessionId: existing.id, date: { gte: todayKey() } },
+        select: { date: true },
+        distinct: ['date'],
+      });
+      const stranded = booked
+        .map((row) => row.date)
+        .filter((d) => !stillMeets(d))
+        .sort((a, b) => a.localeCompare(b));
+
+      if (stranded.length) {
+        const shown = stranded.slice(0, 3).join(', ');
+        const more = stranded.length > 3 ? ' and ' + (stranded.length - 3) + ' more' : '';
+        return res.status(409).json({
+          error: 'would_strand_enrollments',
+          message: `Students are already signed up on ${shown}${more}, and this change would stop the session meeting then. Clear those days first, or keep those days in the schedule.`,
+          dates: stranded,
+        });
+      }
+    }
+
     const session = await prisma.session.update({
       where: { id: existing.id },
       data,
@@ -407,6 +443,10 @@ const skipMessages = {
   inactive_account: 'That account is not active.',
   session_full: 'No seats left for this date.',
   already_enrolled: 'Already in this session for this date — nothing changed.',
+  assigned_by_another_teacher:
+    'Another teacher has already assigned this student that day. Ask them, or have an admin clear it.',
+  attendance_already_recorded:
+    'Attendance has already been taken for this student that day — moving them would erase it. An admin can clear it.',
 };
 
 function overrideResult(studentId, user, reason) {
@@ -468,7 +508,13 @@ teacherRouter.post('/sessions/:id/override', async (req, res, next) => {
       prisma.user.findMany({ where: { id: { in: studentIds } } }),
       prisma.enrollment.findMany({
         where: { studentId: { in: studentIds }, date },
-        include: { session: { select: { id: true, title: true } } },
+        // teacherId and attendance are needed to tell "displacing this
+        // student's own choice" (allowed — that is what an override IS) from
+        // "overwriting another teacher's mandatory assignment" (not allowed).
+        include: {
+          session: { select: { id: true, title: true, teacherId: true } },
+          attendance: { select: { id: true, status: true } },
+        },
       }),
       prisma.enrollment.count({ where: { sessionId: session.id, date } }),
     ]);
@@ -494,6 +540,33 @@ teacherRouter.post('/sessions/:id/override', async (req, res, next) => {
         resultBy.set(studentId, overrideResult(studentId, user, reason));
         continue;
       }
+
+      // An override outranks a student's own choice — that is the whole point.
+      // It must NOT outrank a different teacher's override: otherwise any
+      // teacher can pull a student out of another teacher's mandatory session
+      // and, because the enrollment row is repurposed rather than replaced,
+      // destroy the attendance that teacher already recorded against it.
+      // Admins act org-wide, so they are exempt.
+      const prior = existingBy.get(studentId);
+      if (
+        prior &&
+        prior.status === 'teacher_override' &&
+        prior.sessionId !== session.id &&
+        prior.session?.teacherId !== req.user.id &&
+        req.user.role !== 'admin'
+      ) {
+        resultBy.set(studentId, overrideResult(studentId, user, 'assigned_by_another_teacher'));
+        continue;
+      }
+
+      // Attendance already recorded describes a period that has happened.
+      // Moving the student rewrites the row it hangs off, so the record would
+      // be destroyed — refuse rather than silently erase someone's evidence.
+      if (prior && prior.attendance && prior.sessionId !== session.id && req.user.role !== 'admin') {
+        resultBy.set(studentId, overrideResult(studentId, user, 'attendance_already_recorded'));
+        continue;
+      }
+
       assignable.push(user);
     }
 
@@ -529,8 +602,10 @@ teacherRouter.post('/sessions/:id/override', async (req, res, next) => {
     const writes = [];
     for (const user of assignable) {
       const previous = existingBy.get(user.id) ?? null;
-      writes.push(
-        prisma.enrollment.upsert({
+      writes.push({
+        model: 'enrollment',
+        action: 'upsert',
+        args: {
           where: { studentId_date: { studentId: user.id, date } },
           update: {
             sessionId: session.id,
@@ -548,15 +623,19 @@ teacherRouter.post('/sessions/:id/override', async (req, res, next) => {
             locked: true,
             overrideById: req.user.id,
           },
-        })
-      );
+        },
+      });
 
       if (previous && previous.sessionId !== session.id) {
         // The enrollment row is updated, not replaced, so any attendance the
         // previous teacher had already recorded would follow the student into
         // this session and show up on its roster. Drop it — it describes a
         // period the student is no longer attending.
-        writes.push(prisma.attendance.deleteMany({ where: { enrollmentId: previous.id } }));
+        writes.push({
+          model: 'attendance',
+          action: 'deleteMany',
+          args: { where: { enrollmentId: previous.id } },
+        });
       }
 
       const result = overrideResult(user.id, user, null);
@@ -566,9 +645,35 @@ teacherRouter.post('/sessions/:id/override', async (req, res, next) => {
           : null;
       resultBy.set(user.id, result);
     }
-    await prisma.$transaction(writes);
+    // The pre-flight seat math above gives the teacher a useful up-front error.
+    // It cannot be the only check: between counting and writing, students can
+    // take the remaining seats themselves. Re-count inside the transaction,
+    // where the batch's own rows are visible, and roll the whole batch back
+    // rather than overfill the room.
+    let finalCount;
+    try {
+      finalCount = await prisma.$transaction(async (tx) => {
+        for (const op of writes) {
+          await tx[op.model][op.action](op.args);
+        }
+        const taken = await tx.enrollment.count({ where: { sessionId: session.id, date } });
+        if (taken > session.capacity) {
+          throw Object.assign(new Error('capacity exceeded'), { fitSessionFull: true });
+        }
+        return taken;
+      });
+    } catch (err) {
+      if (err?.fitSessionFull) {
+        return res.status(409).json({
+          error: 'session_full',
+          message: `${session.title} filled up while you were assigning. Nothing was changed — reload and try again.`,
+          date,
+          capacity: session.capacity,
+        });
+      }
+      throw err;
+    }
 
-    const finalCount = enrolledCount + needSeat.length;
     res.json({
       date,
       session: { id: session.id, title: session.title },
@@ -618,6 +723,15 @@ teacherRouter.post('/attendance', async (req, res, next) => {
     const note = has(req.body, 'note')
       ? String(req.body.note ?? '').trim() || null
       : undefined;
+
+    // Attendance for a day that has not happened yet is not a record of
+    // anything, and it feeds the no-show rate on the admin dashboard.
+    if (enrollment.date > todayKey()) {
+      return res.status(400).json({
+        error: 'date_in_future',
+        message: `${enrollment.date} hasn't happened yet — attendance can only be taken on the day or afterwards.`,
+      });
+    }
 
     const attendance = await prisma.attendance.upsert({
       where: { enrollmentId: enrollment.id },

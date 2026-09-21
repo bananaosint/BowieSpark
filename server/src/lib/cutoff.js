@@ -50,8 +50,11 @@ export function lockTimeFor(dateKey, rule, bellTime) {
 
 export function isPastCutoff(dateKey, rule, bellTime, now = new Date()) {
   const at = lockTimeFor(dateKey, rule, bellTime);
-  // An unparseable rule must not silently throw scheduling wide open.
-  if (!at) return true;
+  // Fail CLOSED. A null is not the only way this can go wrong: a rule that
+  // parses but produces an unrepresentable instant yields an Invalid Date,
+  // whose getTime() is NaN, and `now >= NaN` is false — which would quietly
+  // disable the cutoff for the whole school rather than locking it.
+  if (!at || Number.isNaN(at.getTime())) return true;
   return now.getTime() >= at.getTime();
 }
 

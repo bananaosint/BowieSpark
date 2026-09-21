@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, apiPost, apiDelete } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 
@@ -21,18 +21,29 @@ export default function RosterPanel({ session, date, onEdit, onDelete, onChanged
   const [picked, setPicked] = useState([]);
   const [assigning, setAssigning] = useState(false);
 
+  // Monotonic request id: a slow roster fetch for the previously selected
+  // session must not land after the user has switched, or attendance buttons
+  // would be rendered from one session's rows while writing to another's.
+  const requestRef = useRef(0);
+
   const load = useCallback(async () => {
+    const ticket = ++requestRef.current;
     setError(null);
     try {
       const res = await api(`/teacher/sessions/${session.id}/roster?date=${date}`);
+      if (ticket !== requestRef.current) return;
       setRoster(res);
     } catch (err) {
+      if (ticket !== requestRef.current) return;
       setError(err.message);
       setRoster(null);
     }
   }, [session.id, date]);
 
   useEffect(() => {
+    // Clear immediately so the previous session's roster is never shown under
+    // the new session's heading while the next fetch is in flight.
+    setRoster(null);
     setFlash(null);
     setShowAssign(false);
     setPicked([]);
@@ -270,6 +281,10 @@ export default function RosterPanel({ session, date, onEdit, onDelete, onChanged
                         key={s}
                         type="button"
                         className={`attbtn${row.attendance?.status === s ? ' is-on' : ''}`}
+                        // Which mark is recorded was conveyed only by a CSS
+                        // class, so a screen reader announced four identical
+                        // buttons with no way to tell which one was chosen.
+                        aria-pressed={row.attendance?.status === s}
                         disabled={busyId === row.enrollmentId}
                         onClick={() => mark(row, s)}
                       >

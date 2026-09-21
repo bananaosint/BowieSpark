@@ -65,6 +65,9 @@ function serializeCutoff(config) {
     bellTime,
     description: describeCutoff(cutoffRule, bellTime),
     configured: Boolean(config),
+    // The per-session Remove control keys off this. Omitting it left the
+    // button rendering but pointing at `undefined`.
+    sessionId: config?.sessionId ?? null,
     setByAdminId: config?.setByAdminId ?? null,
     updatedAt: config?.updatedAt ?? null,
   };
@@ -565,18 +568,35 @@ adminRouter.patch('/users/:id', async (req, res, next) => {
     // Unreachable behind the guard above while the only way in is a logged-in
     // admin, but this is the invariant that actually matters, so it is checked
     // against the database rather than inferred from who is calling.
-    if (target.role === 'admin' && target.active && !(finalRole === 'admin' && finalActive)) {
-      const activeAdmins = await prisma.user.count({ where: { role: 'admin', active: true } });
-      if (activeAdmins <= 1) {
+    // Counting and then writing in two steps is a check-then-act race: two
+    // admins demoting each other at the same moment both see a count of 2,
+    // both pass, and the school is left with no administrator and no way back
+    // in. The count and the write go in one transaction so the loser sees the
+    // winner's row.
+    const losesLastAdmin =
+      target.role === 'admin' && target.active && !(finalRole === 'admin' && finalActive);
+
+    let updated;
+    try {
+      updated = await prisma.$transaction(async (tx) => {
+        if (losesLastAdmin) {
+          const activeAdmins = await tx.user.count({ where: { role: 'admin', active: true } });
+          if (activeAdmins <= 1) {
+            throw Object.assign(new Error('last admin'), { fitLastAdmin: true });
+          }
+        }
+        return tx.user.update({ where: { id: target.id }, data });
+      });
+    } catch (err) {
+      if (err?.fitLastAdmin) {
         return res.status(409).json({
           error: 'last_admin',
           message:
             'This is the last active administrator. Promote someone else to admin first.',
         });
       }
+      throw err;
     }
-
-    const updated = await prisma.user.update({ where: { id: target.id }, data });
 
     // A deactivated account must lose access now, not whenever its cookie
     // happens to expire. (A role change needs no revoke — resolveSession reads
@@ -686,6 +706,12 @@ adminRouter.get('/analytics', async (req, res, next) => {
       if (dayCodeFor(key)) schoolDays.push(key);
     }
 
+    // "Failed to schedule" can only be said about days that have already gone.
+    // A student has not missed next Tuesday — they can still pick it, and the
+    // default range deliberately looks forwards as well as back, so counting
+    // future days would brand every student a chronic non-scheduler.
+    const elapsedSchoolDays = schoolDays.filter((key) => key <= todayKey());
+
     const [enrollmentsBySession, enrollmentsByStudent, attendanceByStatus, sessions, students] =
       await Promise.all([
         prisma.enrollment.groupBy({
@@ -695,10 +721,10 @@ adminRouter.get('/analytics', async (req, res, next) => {
         }),
         // Restricted to school days so a stray weekend row cannot cancel out a
         // genuinely missed Tuesday in the subtraction below.
-        schoolDays.length
+        elapsedSchoolDays.length
           ? prisma.enrollment.groupBy({
               by: ['studentId'],
-              where: { date: { in: schoolDays } },
+              where: { date: { in: elapsedSchoolDays } },
               _count: { _all: true },
             })
           : [],
@@ -785,7 +811,7 @@ adminRouter.get('/analytics', async (req, res, next) => {
     const unscheduled = students
       .map((student) => ({
         student,
-        missedDays: schoolDays.length - (enrolledDays.get(student.id) ?? 0),
+        missedDays: elapsedSchoolDays.length - (enrolledDays.get(student.id) ?? 0),
       }))
       .filter((row) => row.missedDays > 0)
       .sort(
@@ -795,7 +821,14 @@ adminRouter.get('/analytics', async (req, res, next) => {
       );
 
     res.json({
-      range: { from, to, days: dayCount, schoolDays: schoolDays.length },
+      range: {
+        from,
+        to,
+        days: dayCount,
+        schoolDays: schoolDays.length,
+        // Named so the dashboard can say what "missed" was measured against.
+        elapsedSchoolDays: elapsedSchoolDays.length,
+      },
       totalSessions: sessions.filter((session) => session.active && ranInRange(session)).length,
       // Distinct students who scheduled at least one school day in range.
       totalStudents: enrollmentsByStudent.length,
