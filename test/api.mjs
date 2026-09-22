@@ -73,8 +73,26 @@ const okonkwo = await login('okonkwo@austinisd.org');
 const admin = await login('fit.admin@austinisd.org');
 
 const week = (await avery.call('/me/week')).body;
+// Kept for date-RANGE assertions only — never for signing up.
 const monday = week.days[0].date;
 const wednesday = week.days[2].date;
+
+// Every test that actually enrols someone uses this instead of week.days[0].
+// Blindly using the first day of the week breaks every afternoon: once the
+// bell passes, today's signups are closed and every session on it correctly
+// reports pastCutoff. That is the product working, not a regression, and a
+// suite that cannot tell the two apart is worse than no suite.
+const openDay = week.days.find((d) => !d.pastCutoff && !d.isOverridden)?.date;
+if (!openDay) {
+  console.error(
+    '\nNo day left in this week is still open for signups (all past cutoff or ' +
+      'teacher-assigned). Re-run tomorrow, or widen the cutoff in Admin.'
+  );
+  process.exit(1);
+}
+if (openDay !== monday) {
+  console.log(`(signup checks use ${openDay}; ${monday} is already past its cutoff)`);
+}
 
 section('AUTHENTICATION');
 {
@@ -115,19 +133,19 @@ section('AUTHENTICATION');
 
 section('STUDENT — self-scheduling');
 {
-  const sessions = (await avery.call(`/sessions?date=${monday}`)).body.sessions;
+  const sessions = (await avery.call(`/sessions?date=${openDay}`)).body.sessions;
   const target = sessions.find((s) => !s.isFull && !s.pastCutoff);
 
   const r = await avery.call('/enrollments', {
     method: 'POST',
-    body: { sessionId: target.id, date: monday },
+    body: { sessionId: target.id, date: openDay },
   });
   ck('a student can sign up', r.status === 200, String(r.status));
 
   const other = sessions.find((s) => s.id !== target.id && !s.isFull && !s.pastCutoff);
-  await avery.call('/enrollments', { method: 'POST', body: { sessionId: other.id, date: monday } });
+  await avery.call('/enrollments', { method: 'POST', body: { sessionId: other.id, date: openDay } });
   const rows = (await avery.call('/enrollments/history?limit=200')).body.enrollments.filter(
-    (e) => e.date === monday
+    (e) => e.date === openDay
   );
   // @@unique([studentId, date]) — switching must replace, never accumulate.
   ck('changing your mind replaces the pick, never adds one', rows.length === 1, `${rows.length} rows`);
@@ -145,8 +163,8 @@ section('STUDENT — self-scheduling');
     (await avery.call(`/sessions?date=2026-02-30`)).status === 400
   );
 
-  ck('a student can cancel', (await avery.call(`/enrollments/${monday}`, { method: 'DELETE' })).status === 200);
-  ck('cancelling twice is a clean 404', (await avery.call(`/enrollments/${monday}`, { method: 'DELETE' })).status === 404);
+  ck('a student can cancel', (await avery.call(`/enrollments/${openDay}`, { method: 'DELETE' })).status === 200);
+  ck('cancelling twice is a clean 404', (await avery.call(`/enrollments/${openDay}`, { method: 'DELETE' })).status === 404);
 }
 
 section('STUDENT — a teacher assignment is locked');
@@ -237,15 +255,15 @@ section('CAPACITY — a signup rush cannot oversell a session');
   const students = await Promise.all(handles.map((h) => login(`${h}@stu.austinisd.org`)));
   // All eight at once, which is the case a sequential test would never catch.
   const results = await Promise.all(
-    students.map((s) => s.call('/enrollments', { method: 'POST', body: { sessionId: sid, date: monday } }))
+    students.map((s) => s.call('/enrollments', { method: 'POST', body: { sessionId: sid, date: openDay } }))
   );
 
-  const seated = (await cowlin.call(`/teacher/sessions/${sid}/roster?date=${monday}`)).body.roster.length;
+  const seated = (await cowlin.call(`/teacher/sessions/${sid}/roster?date=${openDay}`)).body.roster.length;
   ck('never exceeds capacity under concurrency', seated <= 3, `${seated} seated in a 3-seat session`);
   ck('  ...and still fills every seat', seated === 3, String(seated));
   ck('  ...losers get a clean 409, not a 500', results.every((r) => r.status === 200 || r.status === 409), results.map((r) => r.status).join(','));
 
-  for (const s of students) await s.call(`/enrollments/${monday}`, { method: 'DELETE' });
+  for (const s of students) await s.call(`/enrollments/${openDay}`, { method: 'DELETE' });
   await cowlin.call(`/teacher/sessions/${sid}`, { method: 'DELETE' });
 }
 
@@ -254,18 +272,18 @@ section('CUTOFF — the UI verdict matches the server');
   const restore = (await admin.call('/admin/cutoff')).body.global;
 
   await admin.call('/admin/cutoff', { method: 'PUT', body: { cutoffRule: 'T-0', bellTime: '09:30' } });
-  let mon = (await avery.call('/me/week')).body.days.find((d) => d.date === monday);
-  ck('T-0: the coming Monday is open', mon.pastCutoff === false);
+  let mon = (await avery.call('/me/week')).body.days.find((d) => d.date === openDay);
+  ck(`T-0: ${openDay} is open`, mon.pastCutoff === false);
 
   // T-2 for Monday closes on Saturday, which has already passed.
   await admin.call('/admin/cutoff', { method: 'PUT', body: { cutoffRule: 'T-2@17:00', bellTime: '09:30' } });
-  mon = (await avery.call('/me/week')).body.days.find((d) => d.date === monday);
+  mon = (await avery.call('/me/week')).body.days.find((d) => d.date === openDay);
   ck('T-2: the same day now reports closed', mon.pastCutoff === true);
   ck('  ...and locked', mon.locked === true);
 
-  const browse = (await avery.call(`/sessions?date=${monday}`)).body.sessions;
+  const browse = (await avery.call(`/sessions?date=${openDay}`)).body.sessions;
   ck('  ...and every session in the list agrees', browse.every((s) => s.pastCutoff === true));
-  const refused = await avery.call('/enrollments', { method: 'POST', body: { sessionId: browse[0].id, date: monday } });
+  const refused = await avery.call('/enrollments', { method: 'POST', body: { sessionId: browse[0].id, date: openDay } });
   ck('  ...and the server refuses, matching what the UI showed', refused.status === 409 && refused.body.error === 'past_cutoff');
 
   ck('a nonsense cutoff rule is rejected', (await admin.call('/admin/cutoff', { method: 'PUT', body: { cutoffRule: 'whenever', bellTime: '09:30' } })).status === 400);
@@ -302,7 +320,7 @@ section('ADMIN');
 section('ADMIN — can undo a teacher override, nobody else can');
 {
   const dev = await login('dpatel@stu.austinisd.org');
-  const day = (await dev.call('/me/week')).body.days.find((d) => !d.isOverridden)?.date ?? monday;
+  const day = (await dev.call('/me/week')).body.days.find((d) => !d.isOverridden && !d.pastCutoff)?.date ?? openDay;
   const mine = (await cowlin.call(`/teacher/sessions?date=${day}`)).body.sessions.find((s) => s.runsOnDate !== false);
 
   await cowlin.call(`/teacher/sessions/${mine.id}/override`, { method: 'POST', body: { studentIds: [dev.user.id], date: day } });
@@ -336,35 +354,41 @@ section('DESTRUCTIVE EDITS — a session change cannot strand students');
   });
   const sid = made.body.session.id;
   const student = await login('esokolov@stu.austinisd.org');
-  await student.call('/enrollments', { method: 'POST', body: { sessionId: sid, date: monday } });
+  await student.call('/enrollments', { method: 'POST', body: { sessionId: sid, date: openDay } });
 
   // Monday is booked, so narrowing the session to Fridays only would leave
   // that student scheduled somewhere that no longer meets.
+  // Narrow onto a weekday the booked day is NOT, whatever openDay turned
+  // out to be, or the guard correctly finds nothing to strand.
+  const bookedCode = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'][
+    new Date(...openDay.split('-').map((v, i) => (i === 1 ? Number(v) - 1 : Number(v)))).getDay()
+  ];
+  const otherCode = ['MON', 'TUE', 'WED', 'THU', 'FRI'].find((c) => c !== bookedCode);
   const narrow = await cowlin.call(`/teacher/sessions/${sid}`, {
     method: 'PATCH',
-    body: { recurrenceType: 'specific_days', days: ['FRI'] },
+    body: { recurrenceType: 'specific_days', days: [otherCode] },
   });
   ck('narrowing recurrence over a booked day is refused', narrow.status === 409, String(narrow.status));
-  ck('  ...naming the day that would be stranded', (narrow.body?.dates ?? []).includes(monday), JSON.stringify(narrow.body?.dates));
+  ck('  ...naming the day that would be stranded', (narrow.body?.dates ?? []).includes(openDay), JSON.stringify(narrow.body?.dates));
 
-  const still = (await cowlin.call(`/teacher/sessions?date=${monday}`)).body.sessions.find((x) => x.id === sid);
+  const still = (await cowlin.call(`/teacher/sessions?date=${openDay}`)).body.sessions.find((x) => x.id === sid);
   ck('  ...and the session was not changed', still.recurrenceType === 'daily', still.recurrenceType);
 
   // Widening, or narrowing onto a day nobody has booked, is fine.
   const ok = await cowlin.call(`/teacher/sessions/${sid}`, {
     method: 'PATCH',
-    body: { recurrenceType: 'specific_days', days: ['MON', 'TUE'] },
+    body: { recurrenceType: 'specific_days', days: [bookedCode, otherCode] },
   });
   ck('narrowing that keeps the booked day is allowed', ok.status === 200, String(ok.status));
 
-  await student.call(`/enrollments/${monday}`, { method: 'DELETE' });
+  await student.call(`/enrollments/${openDay}`, { method: 'DELETE' });
   await cowlin.call(`/teacher/sessions/${sid}`, { method: 'DELETE' });
 }
 
 section('OVERRIDE — one teacher cannot overwrite another teacher\'s assignment');
 {
   const student = await login('gabara@stu.austinisd.org');
-  const day = (await student.call('/me/week')).body.days.find((d) => !d.isOverridden)?.date ?? monday;
+  const day = (await student.call('/me/week')).body.days.find((d) => !d.isOverridden && !d.pastCutoff)?.date ?? openDay;
 
   const oSession = (await okonkwo.call(`/teacher/sessions?date=${day}`)).body.sessions.find((x) => x.runsOnDate !== false);
   const cSession = (await cowlin.call(`/teacher/sessions?date=${day}`)).body.sessions.find((x) => x.runsOnDate !== false);
